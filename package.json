@@ -1,0 +1,19 @@
+{
+	"name": "supabase-storage-upload-action",
+	"version": "0.0.0",
+	"description": "GitHub Action for uploading files to Supabase Storage.",
+	"license": "MIT",
+	"private": true,
+	"type": "module",
+	"packageManager": "pnpm@11.9.0",
+	"engines": {
+		"node": ">=24.12.0 <25"
+	},
+	"scripts": {
+		"check": "biome check .",
+		"fix": "biome check --write ."
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.5.3"
+	}
+}
