@@ -1,5 +1,7 @@
 .devbox/
 node_modules/
+.pnpm-store/
+.build/
 
 .env
 .env.*

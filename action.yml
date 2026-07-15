@@ -1,0 +1,28 @@
+name: Supabase Storage Upload
+description: Upload files from the GitHub workspace to Supabase Storage.
+author: runrly
+branding:
+  icon: upload-cloud
+  color: green
+inputs:
+  config:
+    description: YAML upload manifest.
+    required: true
+  supabase-url:
+    description: Supabase project URL.
+    required: false
+  supabase-key:
+    description: Supabase key with Storage permissions.
+    required: false
+  dry-run:
+    description: Validate and list planned uploads without contacting Supabase.
+    required: false
+    default: "false"
+outputs:
+  matched-count:
+    description: Number of local files matched after planning and deduplication.
+  uploaded-count:
+    description: Number of files uploaded successfully.
+runs:
+  using: node24
+  main: dist/index.js

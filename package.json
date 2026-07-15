@@ -11,9 +11,29 @@
 	},
 	"scripts": {
 		"check": "biome check .",
-		"fix": "biome check --write ."
+		"fix": "biome check --write .",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"build": "tsc --project tsconfig.build.json && rollup --config rollup.config.mjs",
+		"verify": "pnpm run check && pnpm run typecheck && pnpm run test && pnpm run build"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.5.3"
+		"@biomejs/biome": "2.5.3",
+		"@rollup/plugin-commonjs": "29.0.0",
+		"@rollup/plugin-json": "6.1.0",
+		"@rollup/plugin-node-resolve": "16.0.3",
+		"@types/mime-types": "3.0.1",
+		"@types/node": "24.13.3",
+		"rollup": "4.57.1",
+		"typescript": "7.0.2",
+		"vitest": "4.1.10"
+	},
+	"dependencies": {
+		"@actions/core": "3.0.1",
+		"@actions/glob": "0.7.0",
+		"@supabase/supabase-js": "2.110.2",
+		"mime-types": "3.0.2",
+		"tus-js-client": "4.3.1",
+		"yaml": "2.9.0"
 	}
 }

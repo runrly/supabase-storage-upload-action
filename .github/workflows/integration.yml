@@ -1,0 +1,33 @@
+name: Supabase integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      bucket:
+        description: Disposable bucket already configured in Supabase.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Create integration fixture
+        run: |
+          mkdir -p integration-fixture/assets
+          printf 'integration asset\n' > integration-fixture/assets/health.txt
+      - uses: ./
+        with:
+          supabase-url: ${{ secrets.SUPABASE_URL }}
+          supabase-key: ${{ secrets.SUPABASE_KEY }}
+          config: |
+            default:
+              bucket: ${{ inputs.bucket }}
+              upsert: true
+            files:
+              - from: ./integration-fixture/assets/**/*
+                to: github-actions/${{ github.run_id }}/
