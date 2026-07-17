@@ -18,6 +18,7 @@ export async function executePlan(
 		while (failure === undefined) {
 			const entry = plan.entries[next];
 			next += 1;
+
 			if (entry === undefined) return;
 
 			try {
@@ -33,6 +34,7 @@ export async function executePlan(
 	await Promise.all(
 		Array.from({ length: Math.min(concurrency, plan.entries.length) }, worker),
 	);
+
 	if (failure !== undefined) {
 		throw new ExecutionError(failure, uploadedCount);
 	}

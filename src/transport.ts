@@ -1,15 +1,16 @@
-import { createReadStream } from "node:fs";
-import { readFile } from "node:fs/promises";
+import fs from "node:fs";
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@supabase/supabase-js";
 import * as tus from "tus-js-client";
 
+import {
+	MAX_UPLOAD_ATTEMPTS,
+	TUS_CHUNK_SIZE_BYTES,
+	TUS_RETRY_DELAYS,
+} from "./consts.js";
 import type { Uploader } from "./executor.js";
 import type { UploadPlanEntry } from "./types.js";
-import { TUS_CHUNK_SIZE_BYTES } from "./types.js";
-
-const MAX_ATTEMPTS = 3;
-const TUS_RETRY_DELAYS = [0, 1_000];
 
 export interface SupabaseUploaderOptions {
 	supabaseUrl: string;
@@ -26,10 +27,10 @@ export function createSupabaseUploader(
 	return {
 		upload: async (entry) => {
 			if (entry.protocol === "tus") {
-				await uploadWithTus(entry, options);
-				return;
+				return uploadWithTus(entry, options);
 			}
-			await retry(() => uploadStandard(client, entry));
+
+			return retry(() => uploadStandard(client, entry));
 		},
 	};
 }
@@ -38,21 +39,18 @@ async function uploadStandard(
 	client: SupabaseClient,
 	entry: UploadPlanEntry,
 ): Promise<void> {
-	const uploadOptions: {
-		upsert: boolean;
-		contentType: string;
-		cacheControl?: string;
-	} = {
+	const uploadOptions = {
 		upsert: entry.upsert,
 		contentType: entry.contentType,
+		...(entry.cacheControl && { cacheControl: entry.cacheControl }),
 	};
-	if (entry.cacheControl !== undefined)
-		uploadOptions.cacheControl = entry.cacheControl;
 
-	const data = await readFile(entry.localPath);
+	const data = await fs.promises.readFile(entry.localPath);
+
 	const { error } = await client.storage
 		.from(entry.bucket)
 		.upload(entry.objectKey, data, uploadOptions);
+
 	if (error !== null) {
 		throw new Error(`${entry.bucket}/${entry.objectKey}: ${error.message}`);
 	}
@@ -62,34 +60,38 @@ async function uploadWithTus(
 	entry: UploadPlanEntry,
 	options: SupabaseUploaderOptions,
 ): Promise<void> {
-	const metadata: Record<string, string> = {
+	const metadata = {
 		bucketName: entry.bucket,
 		objectName: entry.objectKey,
 		contentType: entry.contentType,
+		...(entry.cacheControl && { cacheControl: entry.cacheControl }),
 	};
-	if (entry.cacheControl !== undefined)
-		metadata.cacheControl = entry.cacheControl;
 
 	await new Promise<void>((resolve, reject) => {
-		const upload = new tus.Upload(createReadStream(entry.localPath) as never, {
-			endpoint: resumableEndpoint(options.supabaseUrl),
-			uploadSize: entry.size,
-			chunkSize: TUS_CHUNK_SIZE_BYTES,
-			retryDelays: TUS_RETRY_DELAYS,
-			removeFingerprintOnSuccess: true,
-			storeFingerprintForResuming: false,
-			metadata,
-			headers: {
-				authorization: `Bearer ${options.supabaseKey}`,
-				apikey: options.supabaseKey,
-				"x-upsert": String(entry.upsert),
+		const upload = new tus.Upload(
+			fs.createReadStream(entry.localPath) as never,
+			{
+				endpoint: resumableEndpoint(options.supabaseUrl),
+				uploadSize: entry.size,
+				chunkSize: TUS_CHUNK_SIZE_BYTES,
+				retryDelays: TUS_RETRY_DELAYS,
+				removeFingerprintOnSuccess: true,
+				storeFingerprintForResuming: false,
+				metadata,
+				headers: {
+					authorization: `Bearer ${options.supabaseKey}`,
+					apikey: options.supabaseKey,
+					"x-upsert": String(entry.upsert),
+				},
+				onError: (error) => {
+					return reject(
+						new Error(`${entry.bucket}/${entry.objectKey}: ${error.message}`),
+					);
+				},
+				onSuccess: () => resolve(),
 			},
-			onError: (error) =>
-				reject(
-					new Error(`${entry.bucket}/${entry.objectKey}: ${error.message}`),
-				),
-			onSuccess: () => resolve(),
-		});
+		);
+
 		upload.start();
 	});
 }
@@ -97,9 +99,12 @@ async function uploadWithTus(
 function resumableEndpoint(supabaseUrl: string): string {
 	const url = new URL(supabaseUrl);
 	const match = /^([a-z0-9-]+)\.supabase\.co$/iu.exec(url.hostname);
-	if (match?.[1] !== undefined) {
-		return `https://${match[1]}.storage.supabase.co/storage/v1/upload/resumable`;
+
+	const projectId = match?.at(1);
+	if (projectId) {
+		return `https://${projectId}.storage.supabase.co/storage/v1/upload/resumable`;
 	}
+
 	return new URL(
 		"storage/v1/upload/resumable",
 		ensureTrailingSlash(url),
@@ -112,17 +117,19 @@ function ensureTrailingSlash(url: URL): string {
 
 async function retry(operation: () => Promise<void>): Promise<void> {
 	let error: unknown;
-	for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+
+	for (let attempt = 1; attempt <= MAX_UPLOAD_ATTEMPTS; attempt += 1) {
 		try {
-			await operation();
-			return;
+			return operation();
 		} catch (caught) {
 			error = caught;
-			if (attempt < MAX_ATTEMPTS) {
+
+			if (attempt < MAX_UPLOAD_ATTEMPTS) {
 				await new Promise((resolve) => setTimeout(resolve, attempt * 1_000));
 			}
 		}
 	}
+
 	throw error;
 }
 

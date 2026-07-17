@@ -1,6 +1,7 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ConfigurationError } from "../src/errors.js";
@@ -13,12 +14,12 @@ afterEach(async () => {
 	await Promise.all(
 		temporaryDirectories
 			.splice(0)
-			.map((directory) => rm(directory, { recursive: true })),
+			.map((directory) => fs.rm(directory, { recursive: true })),
 	);
 });
 
 async function workspace(): Promise<string> {
-	const directory = await mkdtemp(
+	const directory = await fs.mkdtemp(
 		path.join(os.tmpdir(), "supabase-upload-action-"),
 	);
 	temporaryDirectories.push(directory);
@@ -32,7 +33,7 @@ function config(files: UploadConfig["files"]): UploadConfig {
 describe("createUploadPlan", () => {
 	it("uses a literal file to rename an Object Key", async () => {
 		const root = await workspace();
-		await writeFile(path.join(root, "source.txt"), "hello");
+		await fs.writeFile(path.join(root, "source.txt"), "hello");
 
 		const plan = await createUploadPlan(
 			config([{ from: "./source.txt", to: "published/renamed.txt" }]),
@@ -50,8 +51,8 @@ describe("createUploadPlan", () => {
 
 	it("copies folder contents without the source folder itself", async () => {
 		const root = await workspace();
-		await mkdir(path.join(root, "dist", "nested"), { recursive: true });
-		await writeFile(path.join(root, "dist", "nested", "app.js"), "hello");
+		await fs.mkdir(path.join(root, "dist", "nested"), { recursive: true });
+		await fs.writeFile(path.join(root, "dist", "nested", "app.js"), "hello");
 
 		const plan = await createUploadPlan(
 			config([{ from: "./dist", to: "site" }]),
@@ -65,8 +66,8 @@ describe("createUploadPlan", () => {
 
 	it("maps a glob relative to its static base", async () => {
 		const root = await workspace();
-		await mkdir(path.join(root, "dist", "assets"), { recursive: true });
-		await writeFile(path.join(root, "dist", "assets", "app.css"), "hello");
+		await fs.mkdir(path.join(root, "dist", "assets"), { recursive: true });
+		await fs.writeFile(path.join(root, "dist", "assets", "app.css"), "hello");
 
 		const plan = await createUploadPlan(
 			config([{ from: "./dist/assets/**/*", to: "cdn/" }]),
@@ -80,7 +81,7 @@ describe("createUploadPlan", () => {
 
 	it("rejects content-type for a glob", async () => {
 		const root = await workspace();
-		await writeFile(path.join(root, "source.txt"), "hello");
+		await fs.writeFile(path.join(root, "source.txt"), "hello");
 
 		await expect(
 			createUploadPlan(
@@ -93,8 +94,8 @@ describe("createUploadPlan", () => {
 	it("rejects a symlink whose target escapes the workspace", async () => {
 		const root = await workspace();
 		const outside = await workspace();
-		await writeFile(path.join(outside, "private.txt"), "nope");
-		await symlink(
+		await fs.writeFile(path.join(outside, "private.txt"), "nope");
+		await fs.symlink(
 			path.join(outside, "private.txt"),
 			path.join(root, "link.txt"),
 		);
