@@ -1,5 +1,11 @@
 # supabase-storage-upload-action
 
+## 1.0.1
+
+### Patch Changes
+
+- feffc9a: Use a unique GitHub Marketplace action name.
+
 ## 1.0.0
 
 ### Major Changes
