@@ -1,0 +1,52 @@
+name: Changesets
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: changesets-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  version:
+    name: Create or update Release PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Create Runrly Echo token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RUNRLY_ECHO_APP_ID }}
+          private-key: ${{ secrets.RUNRLY_ECHO_APP_PRIVATE_KEY }}
+      - uses: actions/checkout@v7
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.12.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Create or update Release PR
+        uses: changesets/action@v1
+        with:
+          version: pnpm changeset version
+          commit: "release: version packages"
+          title: "release: version packages"
+          setupGitUser: false
+          commitMode: github-api
+          createGithubReleases: false
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
