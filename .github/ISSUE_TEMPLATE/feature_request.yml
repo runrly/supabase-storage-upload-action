@@ -1,0 +1,20 @@
+name: Feature request
+description: Propose an improvement to the Action.
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Describe the Consumer Workflow need.
+    required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

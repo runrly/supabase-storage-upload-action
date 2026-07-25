@@ -124,4 +124,17 @@ devbox run -- pnpm run verify
 
 `pnpm install` installs the local Git hooks. Before every commit, they run the complete verification suite and require a Conventional Commit message. If the build regenerates `dist/index.js`, review and stage that file before committing again; hooks never stage generated output automatically.
 
-The generated `dist/` bundle is part of a release and should be committed with source changes. After validation, publish a compatible release and move the major tag manually, for example `v1`; release automation is intentionally not configured yet.
+The generated `dist/` bundle is part of a release and should be committed with source changes.
+
+## Releases
+
+Consumers can pin a fixed version such as `v1.0.0` or the maintained major tag `v1`.
+Every fixed release tag and major tag is annotated and SSH-signed by the Runrly Echo GitHub App. The repository uses Changesets: user-facing changes add a fragment in `.changeset/`, which is collected in the persistent `changeset-release/main` Release PR. Merging that PR creates the fixed signed tag; publishing the associated GitHub Release is a separate maintainer-approved step.
+
+Maintainers create a draft Release from **Actions → Release**, approve the
+`release-publication` environment, then complete Marketplace publication in the
+GitHub UI. Publishing promotes the signed `v1` tag.
+
+## Contributing and support
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Questions, bugs, and feature requests belong in [GitHub Issues](https://github.com/runrly/supabase-storage-upload-action/issues). For a security vulnerability, follow [SECURITY.md](SECURITY.md) instead of creating a public issue.

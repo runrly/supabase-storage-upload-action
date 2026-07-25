@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing signed stable tag, for example v1.0.0.
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  create-draft:
+    name: Validate tag and create draft release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release-publication
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: validate
+        name: Validate signed release tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/validate-release-tag.sh
+      - name: Extract release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          awk -v heading="## ${RELEASE_TAG#v}" '
+            $0 == heading { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
+          test -s "$RUNNER_TEMP/release-notes.md"
+      - name: Create Runrly Echo token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RUNRLY_ECHO_APP_ID }}
+          private-key: ${{ secrets.RUNRLY_ECHO_APP_PRIVATE_KEY }}
+      - name: Create draft GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" > /dev/null 2>&1 && {
+            echo "release $RELEASE_TAG already exists" >&2
+            exit 1
+          }
+          gh release create "$RELEASE_TAG" \
+            --draft \
+            --target "${{ steps.validate.outputs.commit }}" \
+            --title "Release $RELEASE_TAG" \
+            --notes-file "$RUNNER_TEMP/release-notes.md"

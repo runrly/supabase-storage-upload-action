@@ -1,0 +1,69 @@
+name: Release tag
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+concurrency:
+  group: release-tag-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  classify-release-pr:
+    name: Classify Release PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      is-release-pr: ${{ steps.classify.outputs.is-release-pr }}
+    steps:
+      - id: classify
+        shell: bash
+        env:
+          MERGED: ${{ github.event.pull_request.merged }}
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          is_release_pr=false
+          if [[ "$MERGED" == true \
+            && "$BASE_BRANCH" == main \
+            && "$HEAD_BRANCH" == changeset-release/main \
+            && "$HEAD_REPOSITORY" == "$REPOSITORY" \
+            && "$PR_AUTHOR" == 'runrly-echo[bot]' ]]; then
+            is_release_pr=true
+          fi
+          echo "is-release-pr=$is_release_pr" >> "$GITHUB_OUTPUT"
+
+  create-signed-tag:
+    name: Create signed release tag
+    needs: classify-release-pr
+    if: ${{ needs.classify-release-pr.outputs.is-release-pr == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release-signing
+    steps:
+      - name: Create Runrly Echo token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RUNRLY_ECHO_APP_ID }}
+          private-key: ${{ secrets.RUNRLY_ECHO_APP_PRIVATE_KEY }}
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+      - name: Create and verify SSH-signed tag
+        shell: bash
+        env:
+          RELEASE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          RUNRLY_ECHO_SIGNING_PRIVATE_KEY: ${{ secrets.RUNRLY_ECHO_SIGNING_PRIVATE_KEY }}
+        run: .github/scripts/create-signed-release-tag.sh
