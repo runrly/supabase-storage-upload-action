@@ -1,4 +1,4 @@
-name: Supabase Storage Upload
+name: Supabase Storage Upload Action
 description: Upload files from the GitHub workspace to Supabase Storage.
 author: runrly
 branding:
