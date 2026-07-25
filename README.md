@@ -122,4 +122,6 @@ devbox run -- pnpm install --frozen-lockfile
 devbox run -- pnpm run verify
 ```
 
+`pnpm install` installs the local Git hooks. Before every commit, they run the complete verification suite and require a Conventional Commit message. If the build regenerates `dist/index.js`, review and stage that file before committing again; hooks never stage generated output automatically.
+
 The generated `dist/` bundle is part of a release and should be committed with source changes. After validation, publish a compatible release and move the major tag manually, for example `v1`; release automation is intentionally not configured yet.
