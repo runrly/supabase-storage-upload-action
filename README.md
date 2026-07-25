@@ -27,7 +27,14 @@ The Action uploads only. It does not create buckets, change RLS policies, or del
           bucket: static-assets
 ```
 
-Use a Supabase key that is authorized by your bucket's RLS policies. Store it as a GitHub Actions secret. For a dry run, credentials are not required.
+## Credentials and RLS
+
+Store `supabase-key` as a GitHub Actions secret. Choose the key type for the trust boundary of the Consumer Workflow:
+
+- **`sb_publishable_...`** (or a legacy `anon` key): the Action runs under RLS. Configure policies on `storage.objects` that allow the target bucket and Object Key prefix. An upload requires `INSERT`; `upsert: true` also requires `SELECT` and `UPDATE`. See [Supabase Storage access control](https://supabase.com/docs/guides/storage/security/access-control).
+- **`sb_secret_...`** (or a legacy `service_role` key): bypasses RLS and is appropriate only for a trusted CI workflow. Keep it exclusively in GitHub Actions secrets; never expose it in client-side code or logs.
+
+Credentials are not required for a dry run.
 
 ## Inputs
 
