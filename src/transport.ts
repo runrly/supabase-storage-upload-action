@@ -41,15 +41,15 @@ async function uploadStandard(
 ): Promise<void> {
 	const uploadOptions = {
 		upsert: entry.upsert,
-		contentType: entry.contentType,
 		...(entry.cacheControl && { cacheControl: entry.cacheControl }),
 	};
 
 	const data = await fs.promises.readFile(entry.localPath);
+	const file = new Blob([data], { type: entry.contentType });
 
 	const { error } = await client.storage
 		.from(entry.bucket)
-		.upload(entry.objectKey, data, uploadOptions);
+		.upload(entry.objectKey, file, uploadOptions);
 
 	if (error !== null) {
 		throw new Error(`${entry.bucket}/${entry.objectKey}: ${error.message}`);
@@ -120,7 +120,8 @@ async function retry(operation: () => Promise<void>): Promise<void> {
 
 	for (let attempt = 1; attempt <= MAX_UPLOAD_ATTEMPTS; attempt += 1) {
 		try {
-			return operation();
+			await operation();
+			return;
 		} catch (caught) {
 			error = caught;
 
