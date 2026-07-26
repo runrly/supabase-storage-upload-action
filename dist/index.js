@@ -56384,7 +56384,8 @@ async function createUploadPlan(config, options) {
         for (const file of files) {
             const objectKey = objectKeyFor(item, sourceKind, file, index);
             const fileStats = await fs$1.stat(file.localPath);
-            const detectedContentType = mime.contentType(file.localPath);
+            const detectedMimeType = mime.lookup(file.localPath);
+            const detectedContentType = detectedMimeType && mime.contentType(detectedMimeType);
             const cacheControl = item.cacheControl ?? config.defaults.cacheControl;
             const protocol = fileStats.size <= STANDARD_UPLOAD_LIMIT_BYTES ? "standard" : "tus";
             const contentType = item.contentType ?? (detectedContentType || "application/octet-stream");

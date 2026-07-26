@@ -60,7 +60,9 @@ export async function createUploadPlan(
 			const objectKey = objectKeyFor(item, sourceKind, file, index);
 			const fileStats = await fs.stat(file.localPath);
 
-			const detectedContentType = mime.contentType(file.localPath);
+			const detectedMimeType = mime.lookup(file.localPath);
+			const detectedContentType =
+				detectedMimeType && mime.contentType(detectedMimeType);
 			const cacheControl = item.cacheControl ?? config.defaults.cacheControl;
 
 			const protocol =

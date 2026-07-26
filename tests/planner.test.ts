@@ -79,6 +79,27 @@ describe("createUploadPlan", () => {
 		]);
 	});
 
+	it("infers MIME types from globbed filenames", async () => {
+		const root = await workspace();
+		await fs.mkdir(path.join(root, "assets"), { recursive: true });
+		await fs.writeFile(path.join(root, "assets", "health.txt"), "healthy");
+		await fs.writeFile(path.join(root, "assets", "payload.unknown"), "payload");
+
+		const plan = await createUploadPlan(config([{ from: "./assets/**/*" }]), {
+			workspace: root,
+		});
+
+		expect(
+			plan.entries.map(({ objectKey, contentType }) => ({
+				objectKey,
+				contentType,
+			})),
+		).toEqual([
+			{ objectKey: "health.txt", contentType: "text/plain; charset=utf-8" },
+			{ objectKey: "payload.unknown", contentType: "application/octet-stream" },
+		]);
+	});
+
 	it("rejects content-type for a glob", async () => {
 		const root = await workspace();
 		await fs.writeFile(path.join(root, "source.txt"), "hello");
