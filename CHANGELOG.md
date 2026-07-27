@@ -1,5 +1,11 @@
 # supabase-storage-upload-action
 
+## 1.0.3
+
+### Patch Changes
+
+- 4668370: Update bundled dependencies to address known security vulnerabilities.
+
 ## 1.0.2
 
 ### Patch Changes
