@@ -30,7 +30,7 @@
 		"@rollup/plugin-json": "6.1.0",
 		"@rollup/plugin-node-resolve": "16.0.3",
 		"@types/mime-types": "3.0.1",
-		"@types/node": "24.13.3",
+		"@types/node": "26.1.2",
 		"husky": "9.1.7",
 		"rollup": "4.59.0",
 		"typescript": "7.0.2",
