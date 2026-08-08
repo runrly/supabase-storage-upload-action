@@ -28,16 +28,14 @@ describe("parseActionInputs", () => {
 		expect(inputs.dryRun).toBe(expected);
 	});
 
-	it.each([
-		"True",
-		"TRUE",
-		"False",
-		"FALSE",
-	])("rejects non-lowercase boolean %s", (dryRun) => {
-		expect(() => parseActionInputs(actionInputs({ dryRun }))).toThrow(
-			"dry-run must be true or false.",
-		);
-	});
+	it.each(["True", "TRUE", "False", "FALSE"])(
+		"rejects non-lowercase boolean %s",
+		(dryRun) => {
+			expect(() => parseActionInputs(actionInputs({ dryRun }))).toThrow(
+				"dry-run must be true or false.",
+			);
+		},
+	);
 
 	it("allows absent credentials for a dry run", () => {
 		expect(
