@@ -56430,7 +56430,7 @@ async function createUploadPlan(config, options) {
             throw new ConfigurationError(`files[${index}].from did not match any files: ${item.from}`);
         }
         const bucket = item.bucket ?? config.defaults.bucket;
-        if (bucket === undefined || bucket.length === 0) {
+        if (!bucket) {
             throw new ConfigurationError(`files[${index}] must define bucket or config.default.bucket must be set.`);
         }
         for (const file of files) {
@@ -56551,13 +56551,13 @@ function normalizeObjectPath(value, allowEmpty, index) {
         normalized.push(part);
     }
     const result = normalized.join("/");
-    if (!allowEmpty && result.length === 0) {
+    if (!allowEmpty && !result) {
         throw new ConfigurationError(`files[${index}].to must name an Object Key.`);
     }
     return result;
 }
 function joinObjectKey(prefix, suffix) {
-    return prefix.length === 0 ? suffix : `${prefix}/${suffix}`;
+    return prefix ? `${prefix}/${suffix}` : suffix;
 }
 function endsWithSlash(value) {
     return /[\\/]$/u.test(value.trim());
@@ -88995,7 +88995,7 @@ async function uploadStandard(client, entry) {
     const { error } = await client.storage
         .from(entry.bucket)
         .upload(entry.objectKey, file, uploadOptions);
-    if (error !== null) {
+    if (error) {
         throw new Error(`${entry.bucket}/${entry.objectKey}: ${error.message}`);
     }
 }

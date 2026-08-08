@@ -51,7 +51,7 @@ async function uploadStandard(
 		.from(entry.bucket)
 		.upload(entry.objectKey, file, uploadOptions);
 
-	if (error !== null) {
+	if (error) {
 		throw new Error(`${entry.bucket}/${entry.objectKey}: ${error.message}`);
 	}
 }

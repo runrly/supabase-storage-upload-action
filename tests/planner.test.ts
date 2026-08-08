@@ -112,6 +112,31 @@ describe("createUploadPlan", () => {
 		).rejects.toThrow("only valid when from is a literal file");
 	});
 
+	it("rejects an Upload Item without an effective bucket", async () => {
+		const root = await workspace();
+		await fs.writeFile(path.join(root, "source.txt"), "hello");
+
+		await expect(
+			createUploadPlan(
+				{ defaults: {}, files: [{ from: "./source.txt" }] },
+				{ workspace: root },
+			),
+		).rejects.toThrow(
+			"must define bucket or config.default.bucket must be set",
+		);
+	});
+
+	it("rejects a literal Object Key that normalizes to empty", async () => {
+		const root = await workspace();
+		await fs.writeFile(path.join(root, "source.txt"), "hello");
+
+		await expect(
+			createUploadPlan(config([{ from: "./source.txt", to: "." }]), {
+				workspace: root,
+			}),
+		).rejects.toThrow("files[0].to must name an Object Key");
+	});
+
 	it("rejects a symlink whose target escapes the workspace", async () => {
 		const root = await workspace();
 		const outside = await workspace();

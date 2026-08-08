@@ -103,4 +103,56 @@ describe("standard upload", () => {
 			await fs.rm(directory, { recursive: true, force: true });
 		}
 	});
+
+	it("includes the destination when Storage returns an error", async () => {
+		const fetch = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						statusCode: "403",
+						error: "Forbidden",
+						message: "upload denied",
+					}),
+					{
+						status: 403,
+						headers: { "content-type": "application/json" },
+					},
+				),
+		);
+
+		vi.stubGlobal("fetch", fetch);
+		vi.useFakeTimers();
+		const readFile = vi
+			.spyOn(fs, "readFile")
+			.mockResolvedValue(Buffer.from("integration asset\n"));
+
+		try {
+			const upload = createSupabaseUploader({
+				supabaseUrl: "https://project-ref.supabase.co",
+				supabaseKey: "test-key",
+			}).upload({
+				localPath: "health.txt",
+				realPath: "health.txt",
+				bucket: "assets",
+				objectKey: "health.txt",
+				size: 18,
+				contentType: "text/plain; charset=utf-8",
+				upsert: false,
+				protocol: "standard",
+				sourceKind: "file",
+			});
+			const rejection = expect(upload).rejects.toThrow(
+				"assets/health.txt: upload denied",
+			);
+
+			await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+			await vi.runAllTimersAsync();
+			await rejection;
+			expect(fetch).toHaveBeenCalledTimes(3);
+		} finally {
+			readFile.mockRestore();
+			vi.useRealTimers();
+			vi.unstubAllGlobals();
+		}
+	});
 });

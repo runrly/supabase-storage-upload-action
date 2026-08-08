@@ -50,7 +50,7 @@ export async function createUploadPlan(
 
 		const bucket = item.bucket ?? config.defaults.bucket;
 
-		if (bucket === undefined || bucket.length === 0) {
+		if (!bucket) {
 			throw new ConfigurationError(
 				`files[${index}] must define bucket or config.default.bucket must be set.`,
 			);
@@ -265,7 +265,7 @@ function normalizeObjectPath(
 
 	const result = normalized.join("/");
 
-	if (!allowEmpty && result.length === 0) {
+	if (!allowEmpty && !result) {
 		throw new ConfigurationError(`files[${index}].to must name an Object Key.`);
 	}
 
@@ -273,7 +273,7 @@ function normalizeObjectPath(
 }
 
 function joinObjectKey(prefix: string, suffix: string): string {
-	return prefix.length === 0 ? suffix : `${prefix}/${suffix}`;
+	return prefix ? `${prefix}/${suffix}` : suffix;
 }
 
 function endsWithSlash(value: string): boolean {
