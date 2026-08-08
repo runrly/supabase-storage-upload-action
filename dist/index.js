@@ -56814,7 +56814,9 @@ class FunctionsClient {
      * @category Edge Functions
      *
      * @remarks
-     * - Requires an Authorization header.
+     * - The API key is sent in the `apikey` header. The `Authorization` header is reserved
+     *   for the signed-in user's JWT (or a custom auth token) — when there is no session, a
+     *   new-format API key (`sb_publishable_…` / `sb_secret_…`) is not sent as a Bearer token.
      * - Invoke params generally match the [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) spec.
      * - When you pass in a body to your function, we automatically attach the Content-Type header for `Blob`, `ArrayBuffer`, `File`, `FormData` and `String`. If it doesn't match any of these types we assume the payload is `json`, serialize it and attach the `Content-Type` header as `application/json`. You can override this behavior by passing in a `Content-Type` header of your own.
      * - Responses are automatically parsed as `json`, `blob` and `form-data` depending on the `Content-Type` header sent by your function. Responses are parsed as `text` by default.
@@ -56927,9 +56929,10 @@ class FunctionsClient {
      */
     invoke(functionName_1) {
         return __awaiter$1(this, arguments, void 0, function* (functionName, options = {}) {
-            var _a;
+            var _a, _b;
             let timeoutId;
             let timeoutController;
+            let onAbort;
             try {
                 const { headers, method, body: functionArgs, signal, timeout } = options;
                 let _headers = {};
@@ -56991,8 +56994,10 @@ class FunctionsClient {
                     // If user provided their own signal, we need to respect both
                     if (signal) {
                         effectiveSignal = timeoutController.signal;
-                        // If the user's signal is aborted, abort our timeout controller too
-                        signal.addEventListener('abort', () => timeoutController.abort());
+                        // If the user's signal is aborted, abort our timeout controller too.
+                        // Store the listener so we can clean it up in finally.
+                        onAbort = () => timeoutController.abort();
+                        signal.addEventListener('abort', onAbort);
                     }
                     else {
                         effectiveSignal = timeoutController.signal;
@@ -57017,7 +57022,12 @@ class FunctionsClient {
                 if (!response.ok) {
                     throw new FunctionsHttpError(response);
                 }
-                let responseType = ((_a = response.headers.get('Content-Type')) !== null && _a !== void 0 ? _a : 'text/plain').split(';')[0].trim();
+                // HTTP media types are case-insensitive (RFC 9110), so normalize before
+                // matching — otherwise an "Application/JSON" response falls through to text.
+                let responseType = ((_a = response.headers.get('Content-Type')) !== null && _a !== void 0 ? _a : 'text/plain')
+                    .split(';')[0]
+                    .trim()
+                    .toLowerCase();
                 let data;
                 if (responseType === 'application/json') {
                     data = yield response.json();
@@ -57051,6 +57061,11 @@ class FunctionsClient {
                 // Clear the timeout if it was set
                 if (timeoutId) {
                     clearTimeout(timeoutId);
+                }
+                // Remove the cross-signal listener to prevent memory leaks when the caller
+                // reuses the same AbortSignal across multiple invocations.
+                if (onAbort) {
+                    (_b = options.signal) === null || _b === void 0 ? void 0 : _b.removeEventListener('abort', onAbort);
                 }
             }
         });
@@ -61037,7 +61052,7 @@ class WebSocketFactory {
 // - Debugging and support (identifying which version is running)
 // - Telemetry and logging (version reporting in errors/analytics)
 // - Ensuring build artifacts match the published package version
-const version$4 = '2.110.2';
+const version$4 = '2.111.0';
 
 const DEFAULT_VERSION = `realtime-js/${version$4}`;
 const VSN_1_0_0 = '1.0.0';
@@ -61108,16 +61123,21 @@ class Serializer {
     }
     _encodeUserBroadcastPush(message, encodingType, encodedPayload) {
         var _a, _b;
-        const topic = message.topic;
-        const ref = (_a = message.ref) !== null && _a !== void 0 ? _a : '';
-        const joinRef = (_b = message.join_ref) !== null && _b !== void 0 ? _b : '';
-        const userEvent = message.payload.event;
+        // Encode each header field as UTF-8. The length prefixes are byte counts and
+        // the decode side uses TextDecoder (UTF-8), so measuring with String.length
+        // and writing with charCodeAt would corrupt any multi-byte character (e.g.
+        // accents or emoji) and desynchronize the buffer.
+        const encoder = new TextEncoder();
+        const topic = encoder.encode(message.topic);
+        const ref = encoder.encode((_a = message.ref) !== null && _a !== void 0 ? _a : '');
+        const joinRef = encoder.encode((_b = message.join_ref) !== null && _b !== void 0 ? _b : '');
+        const userEvent = encoder.encode(message.payload.event);
         // Filter metadata based on allowed keys
         const rest = this.allowedMetadataKeys
             ? this._pick(message.payload, this.allowedMetadataKeys)
             : {};
-        const metadata = Object.keys(rest).length === 0 ? '' : JSON.stringify(rest);
-        // Validate lengths don't exceed uint8 max value (255)
+        const metadata = encoder.encode(Object.keys(rest).length === 0 ? '' : JSON.stringify(rest));
+        // Validate byte lengths don't exceed uint8 max value (255)
         if (joinRef.length > 255) {
             throw new Error(`joinRef length ${joinRef.length} exceeds maximum of 255`);
         }
@@ -61140,7 +61160,8 @@ class Serializer {
             userEvent.length +
             metadata.length;
         const header = new ArrayBuffer(this.HEADER_LENGTH + metaLength);
-        let view = new DataView(header);
+        const view = new DataView(header);
+        const bytes = new Uint8Array(header);
         let offset = 0;
         view.setUint8(offset++, this.KINDS.userBroadcastPush); // kind
         view.setUint8(offset++, joinRef.length);
@@ -61149,11 +61170,16 @@ class Serializer {
         view.setUint8(offset++, userEvent.length);
         view.setUint8(offset++, metadata.length);
         view.setUint8(offset++, encodingType);
-        Array.from(joinRef, (char) => view.setUint8(offset++, char.charCodeAt(0)));
-        Array.from(ref, (char) => view.setUint8(offset++, char.charCodeAt(0)));
-        Array.from(topic, (char) => view.setUint8(offset++, char.charCodeAt(0)));
-        Array.from(userEvent, (char) => view.setUint8(offset++, char.charCodeAt(0)));
-        Array.from(metadata, (char) => view.setUint8(offset++, char.charCodeAt(0)));
+        bytes.set(joinRef, offset);
+        offset += joinRef.length;
+        bytes.set(ref, offset);
+        offset += ref.length;
+        bytes.set(topic, offset);
+        offset += topic.length;
+        bytes.set(userEvent, offset);
+        offset += userEvent.length;
+        bytes.set(metadata, offset);
+        offset += metadata.length;
         var combined = new Uint8Array(header.byteLength + encodedPayload.byteLength);
         combined.set(new Uint8Array(header), 0);
         combined.set(new Uint8Array(encodedPayload), header.byteLength);
@@ -61468,6 +61494,7 @@ var global$1 = globalSelf || phxWindow || globalThis;
 var DEFAULT_VSN = "2.0.0";
 var DEFAULT_TIMEOUT = 1e4;
 var WS_CLOSE_NORMAL = 1e3;
+var MAX_LONGPOLL_BATCH_SIZE = 100;
 var SOCKET_STATES = (
   /** @type {const} */
   { connecting: 0, open: 1, closing: 2, closed: 3 }
@@ -62196,16 +62223,22 @@ var LongPoll = class {
       }, 0);
     }
   }
-  batchSend(messages) {
+  batchSend(messages, offset = 0) {
     this.awaitingBatchAck = true;
-    this.ajax("POST", { "Content-Type": "application/x-ndjson" }, messages.join("\n"), () => this.onerror("timeout"), (resp) => {
-      this.awaitingBatchAck = false;
+    const next = offset + MAX_LONGPOLL_BATCH_SIZE;
+    const batch = messages.slice(offset, next);
+    this.ajax("POST", { "Content-Type": "application/x-ndjson" }, batch.join("\n"), () => this.onerror("timeout"), (resp) => {
       if (!resp || resp.status !== 200) {
+        this.awaitingBatchAck = false;
         this.onerror(resp && resp.status);
         this.closeAndRetry(1011, "internal server error", false);
+      } else if (next < messages.length) {
+        this.batchSend(messages, next);
       } else if (this.batchBuffer.length > 0) {
         this.batchSend(this.batchBuffer);
         this.batchBuffer = [];
+      } else {
+        this.awaitingBatchAck = false;
       }
     });
   }
@@ -62250,7 +62283,7 @@ var Presence = class _Presence {
   constructor(channel, opts = {}) {
     let events = opts.events || /** @type {PresenceEvents} */
     { state: "presence_state", diff: "presence_diff" };
-    this.state = {};
+    this.state = /* @__PURE__ */ Object.create(null);
     this.pendingDiffs = [];
     this.channel = channel;
     this.joinRef = null;
@@ -62329,9 +62362,10 @@ var Presence = class _Presence {
    * @returns {Record<string, PresenceState>}
    */
   static syncState(currentState, newState, onJoin, onLeave) {
-    let state = this.clone(currentState);
-    let joins = {};
-    let leaves = {};
+    let state = this.toNullProtoObj(this.clone(currentState));
+    newState = this.toNullProtoObj(newState);
+    let joins = /* @__PURE__ */ Object.create(null);
+    let leaves = /* @__PURE__ */ Object.create(null);
     this.map(state, (key, presence) => {
       if (!newState[key]) {
         leaves[key] = presence;
@@ -62373,6 +62407,7 @@ var Presence = class _Presence {
    * @returns {Record<string, PresenceState>}
    */
   static syncDiff(state, diff, onJoin, onLeave) {
+    state = this.toNullProtoObj(state);
     let { joins, leaves } = this.clone(diff);
     if (!onJoin) {
       onJoin = function() {
@@ -62436,6 +62471,22 @@ var Presence = class _Presence {
   static map(obj, func) {
     return Object.getOwnPropertyNames(obj).map((key) => func(key, obj[key]));
   }
+  // Presence keys are chosen on the server and may collide with
+  // Object.prototype properties ("__proto__", "constructor", ...), so any
+  // object indexed by presence key must not have a prototype chain
+  //
+  // TODO: replace the null-prototype objects with Maps in Phoenix 2.0
+  // (breaking change for the lower-level static API)
+  static toNullProtoObj(obj) {
+    if (Object.getPrototypeOf(obj) === null) {
+      return obj;
+    }
+    let cleaned = /* @__PURE__ */ Object.create(null);
+    Object.getOwnPropertyNames(obj).forEach((key) => {
+      cleaned[key] = obj[key];
+    });
+    return cleaned;
+  }
   /**
   * @template T
   * @param {T} obj
@@ -62482,23 +62533,42 @@ var serializer_default = {
   /** @private */
   binaryEncode(message) {
     let { join_ref, ref, event, topic, payload } = message;
-    let metaLength = this.META_LENGTH + join_ref.length + ref.length + topic.length + event.length;
+    let encoder = new TextEncoder();
+    let joinRefBytes = encoder.encode(join_ref);
+    let refBytes = encoder.encode(ref);
+    let topicBytes = encoder.encode(topic);
+    let eventBytes = encoder.encode(event);
+    this.assertFieldSize(joinRefBytes.byteLength, "join_ref");
+    this.assertFieldSize(refBytes.byteLength, "ref");
+    this.assertFieldSize(topicBytes.byteLength, "topic");
+    this.assertFieldSize(eventBytes.byteLength, "event");
+    let metaLength = this.META_LENGTH + joinRefBytes.byteLength + refBytes.byteLength + topicBytes.byteLength + eventBytes.byteLength;
     let header = new ArrayBuffer(this.HEADER_LENGTH + metaLength);
+    let headerBytes = new Uint8Array(header);
     let view = new DataView(header);
     let offset = 0;
     view.setUint8(offset++, this.KINDS.push);
-    view.setUint8(offset++, join_ref.length);
-    view.setUint8(offset++, ref.length);
-    view.setUint8(offset++, topic.length);
-    view.setUint8(offset++, event.length);
-    Array.from(join_ref, (char) => view.setUint8(offset++, char.charCodeAt(0)));
-    Array.from(ref, (char) => view.setUint8(offset++, char.charCodeAt(0)));
-    Array.from(topic, (char) => view.setUint8(offset++, char.charCodeAt(0)));
-    Array.from(event, (char) => view.setUint8(offset++, char.charCodeAt(0)));
+    view.setUint8(offset++, joinRefBytes.byteLength);
+    view.setUint8(offset++, refBytes.byteLength);
+    view.setUint8(offset++, topicBytes.byteLength);
+    view.setUint8(offset++, eventBytes.byteLength);
+    headerBytes.set(joinRefBytes, offset);
+    offset += joinRefBytes.byteLength;
+    headerBytes.set(refBytes, offset);
+    offset += refBytes.byteLength;
+    headerBytes.set(topicBytes, offset);
+    offset += topicBytes.byteLength;
+    headerBytes.set(eventBytes, offset);
+    offset += eventBytes.byteLength;
     var combined = new Uint8Array(header.byteLength + payload.byteLength);
-    combined.set(new Uint8Array(header), 0);
+    combined.set(headerBytes, 0);
     combined.set(new Uint8Array(payload), header.byteLength);
     return combined.buffer;
+  },
+  assertFieldSize(size, name) {
+    if (size > 255) {
+      throw new Error(`unable to convert ${name} to binary: must be less than or equal to 255 bytes, but is ${size} bytes`);
+    }
   },
   /**
   * @private
@@ -62679,7 +62749,7 @@ var Socket = class {
         this.connect();
       });
     }, this.reconnectAfterMs);
-    this.authToken = opts.authToken;
+    this.authToken = opts.authToken && closure(opts.authToken);
   }
   /**
    * Returns the LongPoll transport reference
@@ -62880,7 +62950,7 @@ var Socket = class {
     this.closeWasClean = false;
     let protocols = void 0;
     if (this.authToken) {
-      protocols = ["phoenix", `${AUTH_TOKEN_PREFIX}${btoa(this.authToken).replace(/=/g, "")}`];
+      protocols = ["phoenix", `${AUTH_TOKEN_PREFIX}${btoa(this.authToken()).replace(/=/g, "")}`];
     }
     this.conn = new this.transport(this.endPointURL(), protocols);
     this.conn.binaryType = this.binaryType;
@@ -63312,10 +63382,13 @@ class PresenceAdapter {
 }
 function transformState(presences) {
     return presences.metas.map((presence) => {
-        presence['presence_ref'] = presence['phx_ref'];
-        delete presence['phx_ref'];
-        delete presence['phx_ref_prev'];
-        return presence;
+        // Object spread compiles to Object.assign for ES2017, which treats __proto__ as a setter.
+        const descriptors = Object.getOwnPropertyDescriptors(presence);
+        const transformedPresence = Object.defineProperties({}, descriptors);
+        transformedPresence['presence_ref'] = transformedPresence['phx_ref'];
+        delete transformedPresence['phx_ref'];
+        delete transformedPresence['phx_ref_prev'];
+        return transformedPresence;
     });
 }
 function cloneState(state) {
@@ -63848,6 +63921,11 @@ class RealtimeChannel {
      * Sends the supplied payload to the presence tracker so other subscribers can see that this
      * client is online. Use `untrack` to stop broadcasting presence for the same key.
      *
+     * Tracking makes this client visible to other subscribers immediately, regardless of this
+     * channel's `config.presence.enabled` setting or whether it has a `presence` listener — that
+     * flag only affects whether *this* client receives presence updates from others (and, on
+     * RLS-protected channels, whether it's authorized to do so).
+     *
      * @category Realtime
      */
     async track(payload, opts = {}) {
@@ -63855,7 +63933,7 @@ class RealtimeChannel {
             type: 'presence',
             event: 'track',
             payload,
-        }, opts.timeout || this.timeout);
+        }, opts);
     }
     /**
      * Removes the current presence state for this client.
@@ -65925,6 +66003,17 @@ const isValidBucketName = (bucketName) => {
 	if (bucketName.includes("/") || bucketName.includes("\\")) return false;
 	return /^[\w!.\*'() &$@=;:+,?-]+$/.test(bucketName);
 };
+/**
+* Percent-encodes each segment of a storage path so URL delimiters within a
+* key (e.g. `?`, `#`) can't be interpreted as a querystring/fragment start.
+*
+* Splits on `/` so real path separators stay literal — the storage server
+* routes on them and decodes each segment back to the original key.
+*
+* @param path - A bucket id or `bucketId/objectKey` path
+* @returns The path with each `/`-delimited segment percent-encoded
+*/
+const encodeStoragePath = (path) => path.split("/").map(encodeURIComponent).join("/");
 
 //#endregion
 //#region src/lib/common/fetch.ts
@@ -67058,7 +67147,7 @@ var StorageFileApi = class extends BaseApiClient {
 	async purgeCache(path, options, parameters) {
 		var _this13 = this;
 		return _this13.handleOperation(async () => {
-			const _path = _this13._getFinalPath(path);
+			const _path = encodeStoragePath(_this13._getFinalPath(path));
 			const query = new URLSearchParams();
 			if (options === null || options === void 0 ? void 0 : options.transformations) query.set("transformations", "true");
 			const queryString = query.toString();
@@ -67247,7 +67336,7 @@ var StorageFileApi = class extends BaseApiClient {
 
 //#endregion
 //#region src/lib/version.ts
-const version$3 = "2.110.2";
+const version$3 = "2.111.0";
 
 //#endregion
 //#region src/lib/constants.ts
@@ -67585,7 +67674,7 @@ var StorageBucketApi = class extends BaseApiClient {
 			const query = new URLSearchParams();
 			if (options === null || options === void 0 ? void 0 : options.transformations) query.set("transformations", "true");
 			const queryString = query.toString();
-			return await remove(_this7.fetch, `${_this7.url}/cdn/${id}${queryString ? `?${queryString}` : ""}`, {}, { headers: _this7.headers }, parameters);
+			return await remove(_this7.fetch, `${_this7.url}/cdn/${encodeStoragePath(id)}${queryString ? `?${queryString}` : ""}`, {}, { headers: _this7.headers }, parameters);
 		});
 	}
 	listBucketOptionsToQueryString(options) {
@@ -68757,7 +68846,7 @@ var StorageClient = class extends StorageBucketApi {
 // - Debugging and support (identifying which version is running)
 // - Telemetry and logging (version reporting in errors/analytics)
 // - Ensuring build artifacts match the published package version
-const version$2 = '2.110.2';
+const version$2 = '2.111.0';
 
 /** Current session will be checked for refresh at this interval. */
 const AUTO_REFRESH_TICK_DURATION_MS = 30 * 1000;
@@ -68787,6 +68876,19 @@ const API_VERSIONS = {
     },
 };
 const BASE64URL_REGEX = /^([a-z0-9_-]{4})*($|[a-z0-9_-]{3}$|[a-z0-9_-]{2}$)$/i;
+/**
+ * Reserved query parameter appended to `redirectTo` URLs (behind
+ * `experimental.appendPkceFlowIdToRedirects`) that correlates a PKCE callback
+ * with the code verifier stored when its flow started. It round-trips through
+ * the auth server untouched and identifies a verifier slot in storage — the
+ * verifier itself never appears in a URL.
+ */
+const PKCE_FLOW_ID_PARAM = 'sb_flow_id';
+/**
+ * Maximum number of PKCE code verifiers kept in storage at once. Starting a
+ * new flow beyond this evicts the oldest pending verifier.
+ */
+const PKCE_MAX_CONCURRENT_FLOWS = 5;
 const JWKS_TTL = 10 * 60 * 1000; // 10 minutes
 
 /**
@@ -69547,16 +69649,164 @@ async function generatePKCEChallenge(verifier) {
     const hashed = await sha256(verifier);
     return btoa(hashed).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
-async function getCodeChallengeAndMethod(storage, storageKey, isPasswordRecovery = false) {
+const PKCE_FLOW_ID_PATTERN = /^[a-zA-Z0-9_-]{8,64}$/;
+/**
+ * Returns the flow id if it is a plausible flow id, `null` otherwise. Flow
+ * ids can arrive via URL parameters, so anything outside the expected shape
+ * is discarded before it is used to build a storage key.
+ */
+function validatePKCEFlowId(flowId) {
+    return typeof flowId === 'string' && PKCE_FLOW_ID_PATTERN.test(flowId) ? flowId : null;
+}
+function generatePKCEFlowId() {
+    if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+        const bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        return Array.from(bytes, dec2hex).join('');
+    }
+    let flowId = '';
+    for (let i = 0; i < 32; i++) {
+        flowId += Math.floor(Math.random() * 16).toString(16);
+    }
+    return flowId;
+}
+// Slot keys deliberately end in `-code-verifier`: @supabase/ssr's server
+// cookie adapter only persists writes immediately for keys with that suffix
+// (no auth event fires when a verifier is stored). They also contain no dot,
+// because @supabase/ssr chunks oversized cookies as `<key>.<number>` and a
+// dot-delimited key could be mistaken for a chunk of the fixed
+// `-code-verifier` cookie and clobbered by its chunk management.
+const pkceVerifierSlotKey = (storageKey, flowId) => `${storageKey}-flow-${flowId}-code-verifier`;
+const pkceFlowIndexKey = (storageKey) => `${storageKey}-flows-code-verifier`;
+/**
+ * Storage adapters cannot enumerate keys, so the ids of pending verifier
+ * slots are tracked in an index entry, oldest first. Index entries pass
+ * through the same validation as URL-provided flow ids: with cookie-based
+ * storage the index contents are no more trustworthy than a URL parameter.
+ */
+async function getPKCEFlowIndex(storage, storageKey) {
+    const index = await getItemAsync(storage, pkceFlowIndexKey(storageKey));
+    return Array.isArray(index)
+        ? index.filter((id) => validatePKCEFlowId(id) !== null)
+        : [];
+}
+/**
+ * The index is read-modify-write without a lock: two concurrent starts (e.g.
+ * two tabs) can lose one index update. The losing flow still works — its slot
+ * is addressed directly by key — but its entry is missing from the index, so
+ * it escapes both ring eviction and removeAllPKCEVerifiers: the orphaned slot
+ * persists for the storage medium's lifetime (up to the cookie max age in
+ * cookie storage) and repeated races accumulate one orphan each. Accepted
+ * trade-off: locking every flow start is far more intrusive than the leak.
+ */
+async function storePKCEVerifier(storage, storageKey, flowId, verifier, onEvictFlow) {
+    await setItemAsync(storage, pkceVerifierSlotKey(storageKey, flowId), verifier);
+    const index = (await getPKCEFlowIndex(storage, storageKey)).filter((id) => id !== flowId);
+    index.push(flowId);
+    while (index.length > PKCE_MAX_CONCURRENT_FLOWS) {
+        const evicted = index.shift();
+        await removeItemAsync(storage, pkceVerifierSlotKey(storageKey, evicted));
+        onEvictFlow === null || onEvictFlow === void 0 ? void 0 : onEvictFlow(evicted);
+    }
+    await setItemAsync(storage, pkceFlowIndexKey(storageKey), index);
+    // Deprecation-window dual write: exchanges that cannot identify their flow
+    // (older SDK versions, redirects without the flow id parameter) read the
+    // fixed key, which mirrors the most recently started flow.
+    await setItemAsync(storage, `${storageKey}-code-verifier`, verifier);
+}
+/**
+ * Looks up the verifier for `flowId`. When a flow id is given, only that slot
+ * is consulted — deliberately no fallback to the fixed legacy key: submitting
+ * another flow's verifier would burn the single-use auth code, and the
+ * subsequent cleanup would delete a pending flow's only fallback. The legacy
+ * key is read only when no flow id is available at all.
+ */
+async function retrievePKCEVerifier(storage, storageKey, flowId) {
+    if (flowId) {
+        const verifier = await getItemAsync(storage, pkceVerifierSlotKey(storageKey, flowId));
+        return { verifier: typeof verifier === 'string' ? verifier : null, flowId };
+    }
+    const verifier = await getItemAsync(storage, `${storageKey}-code-verifier`);
+    return { verifier: typeof verifier === 'string' ? verifier : null, flowId: null };
+}
+/**
+ * Removes a single flow's verifier. Never clears other flows' slots: with a
+ * `flowId` only that slot is deleted (plus the legacy fixed key when it holds
+ * the same verifier); without one, only the legacy fixed key is deleted.
+ */
+async function removePKCEVerifier(storage, storageKey, flowId) {
+    const legacyKey = `${storageKey}-code-verifier`;
+    if (!flowId) {
+        await removeItemAsync(storage, legacyKey);
+        return;
+    }
+    const slotKey = pkceVerifierSlotKey(storageKey, flowId);
+    const slotValue = await getItemAsync(storage, slotKey);
+    await removeItemAsync(storage, slotKey);
+    // Skip the index rewrite when the flow was never indexed (e.g. a failed
+    // exchange for an absent slot): on cookie storage every write is a full
+    // Set-Cookie cycle.
+    const index = await getPKCEFlowIndex(storage, storageKey);
+    const remaining = index.filter((id) => id !== flowId);
+    if (remaining.length !== index.length) {
+        if (remaining.length > 0) {
+            await setItemAsync(storage, pkceFlowIndexKey(storageKey), remaining);
+        }
+        else {
+            await removeItemAsync(storage, pkceFlowIndexKey(storageKey));
+        }
+    }
+    if (slotValue != null && slotValue === (await getItemAsync(storage, legacyKey))) {
+        await removeItemAsync(storage, legacyKey);
+    }
+}
+/**
+ * Removes every pending verifier: all slots in the index, the index itself
+ * and the fixed legacy key. Used on session teardown (sign-out, invalid
+ * session) — matches the pre-slot behavior where tearing down the session
+ * deleted the only verifier, and prevents long-lived stale verifier cookies.
+ */
+async function removeAllPKCEVerifiers(storage, storageKey) {
+    const index = await getPKCEFlowIndex(storage, storageKey);
+    for (const flowId of index) {
+        await removeItemAsync(storage, pkceVerifierSlotKey(storageKey, flowId));
+    }
+    await removeItemAsync(storage, pkceFlowIndexKey(storageKey));
+    await removeItemAsync(storage, `${storageKey}-code-verifier`);
+}
+/**
+ * Appends the reserved flow id parameter to a `redirectTo` URL, replacing any
+ * existing occurrence. String-based (no URL round-trip) so custom schemes
+ * (native deep links) and the exact encoding of the app's own parameters
+ * survive untouched; an existing fragment stays at the end of the URL.
+ */
+function appendFlowIdToRedirectTo(redirectTo, flowId) {
+    const hashIndex = redirectTo.indexOf('#');
+    let base = hashIndex === -1 ? redirectTo : redirectTo.slice(0, hashIndex);
+    const fragment = hashIndex === -1 ? '' : redirectTo.slice(hashIndex);
+    const queryIndex = base.indexOf('?');
+    if (queryIndex !== -1) {
+        const path = base.slice(0, queryIndex);
+        const remaining = base
+            .slice(queryIndex + 1)
+            .split('&')
+            .filter((pair) => pair !== '' && pair !== PKCE_FLOW_ID_PARAM && !pair.startsWith(`${PKCE_FLOW_ID_PARAM}=`));
+        base = remaining.length > 0 ? `${path}?${remaining.join('&')}` : path;
+    }
+    const separator = base.includes('?') ? '&' : '?';
+    return `${base}${separator}${PKCE_FLOW_ID_PARAM}=${encodeURIComponent(flowId)}${fragment}`;
+}
+async function getCodeChallengeAndMethod(storage, storageKey, isPasswordRecovery = false, onEvictFlow) {
     const codeVerifier = generatePKCEVerifier();
     let storedCodeVerifier = codeVerifier;
     if (isPasswordRecovery) {
         storedCodeVerifier += '/recovery';
     }
-    await setItemAsync(storage, `${storageKey}-code-verifier`, storedCodeVerifier);
+    const flowId = generatePKCEFlowId();
+    await storePKCEVerifier(storage, storageKey, flowId, storedCodeVerifier, onEvictFlow);
     const codeChallenge = await generatePKCEChallenge(codeVerifier);
     const codeChallengeMethod = codeVerifier === codeChallenge ? 'plain' : 's256';
-    return [codeChallenge, codeChallengeMethod];
+    return [codeChallenge, codeChallengeMethod, flowId];
 }
 /** Parses the API version which is 2YYY-MM-DD. */
 const API_VERSION_REGEX = /^2[0-9]{3}-(0[1-9]|1[0-2])-(0[1-9]|1[0-9]|2[0-9]|3[0-1])$/i;
@@ -69792,8 +70042,10 @@ async function _handleRequest(fetcher, method, url, options, parameters, body) {
         result = await fetcher(url, Object.assign({}, requestParams));
     }
     catch (e) {
-        console.error(e);
-        // fetch failed, likely due to a network or CORS error
+        // fetch failed (network / CORS / aborted request) — surfaced to the
+        // caller as a retryable error below. Deliberately not logged here: an
+        // aborted in-flight request (e.g. a superseded page navigation) is a
+        // transient condition, and logging the raw error pollutes the console.
         throw new AuthRetryableFetchError(_getErrorMessage(e), 0);
     }
     if (!result.ok) {
@@ -72747,6 +72999,7 @@ class GoTrueClient {
      */
     async signUp(credentials) {
         var _a, _b, _c;
+        let flowId = null;
         try {
             let res;
             if ('email' in credentials) {
@@ -72755,11 +73008,11 @@ class GoTrueClient {
                 let codeChallengeMethod = null;
                 if (this.flowType === 'pkce') {
                     ;
-                    [codeChallenge, codeChallengeMethod] = await getCodeChallengeAndMethod(this.storage, this.storageKey);
+                    [codeChallenge, codeChallengeMethod, flowId] = await this._getCodeChallengeAndMethod();
                 }
                 res = await _request(this.fetch, 'POST', `${this.url}/signup`, {
                     headers: this.headers,
-                    redirectTo: options === null || options === void 0 ? void 0 : options.emailRedirectTo,
+                    redirectTo: this._maybeAppendFlowIdToRedirect(options === null || options === void 0 ? void 0 : options.emailRedirectTo, flowId),
                     body: {
                         email,
                         password,
@@ -72790,7 +73043,7 @@ class GoTrueClient {
             }
             const { data, error } = res;
             if (error || !data) {
-                await removeItemAsync(this.storage, `${this.storageKey}-code-verifier`);
+                await removePKCEVerifier(this.storage, this.storageKey, flowId);
                 return this._returnResult({ data: { user: null, session: null }, error: error });
             }
             const session = data.session;
@@ -72802,7 +73055,7 @@ class GoTrueClient {
             return this._returnResult({ data: { user, session }, error: null });
         }
         catch (error) {
-            await removeItemAsync(this.storage, `${this.storageKey}-code-verifier`);
+            await removePKCEVerifier(this.storage, this.storageKey, flowId);
             if (isAuthError(error)) {
                 return this._returnResult({ data: { user: null, session: null }, error });
             }
@@ -73017,7 +73270,8 @@ class GoTrueClient {
      * {
      *   data: {
      *     provider: 'github',
-     *     url: <PROVIDER_URL_TO_REDIRECT_TO>
+     *     url: <PROVIDER_URL_TO_REDIRECT_TO>,
+     *     flowId: <PKCE_FLOW_ID_OR_NULL>
      *   },
      *   error: null
      * }
@@ -73090,10 +73344,27 @@ class GoTrueClient {
      *
      * @remarks
      * - Used when `flowType` is set to `pkce` in client options.
+     * - When several PKCE flows are in flight at once, pass `options.flowId` so
+     *   the code is exchanged with the verifier created by that specific flow.
+     *   The flow id is returned by `signInWithOAuth`, and with
+     *   `experimental.appendPkceFlowIdToRedirects` enabled it also arrives on
+     *   your callback URL as the reserved `sb_flow_id` query parameter (read
+     *   automatically in a browser).
+     * - When a flow id is present but its stored verifier is gone (evicted,
+     *   already used, or from another device), the call fails with a verifier
+     *   missing error instead of trying another flow's verifier — a mismatched
+     *   verifier would consume the single-use code. Without any flow id the
+     *   most recently stored verifier is used, as before.
      *
      * @example Exchange Auth Code
      * ```js
      * supabase.auth.exchangeCodeForSession('34e770dd-9ff9-416c-87fa-43b31d7ef225')
+     * ```
+     *
+     * @example Exchange Auth Code for a specific flow (e.g. in a server-side callback handler)
+     * ```js
+     * const flowId = requestUrl.searchParams.get('sb_flow_id')
+     * supabase.auth.exchangeCodeForSession(code, flowId ? { flowId } : undefined)
      * ```
      *
      * @exampleResponse Exchange Auth Code
@@ -73253,15 +73524,15 @@ class GoTrueClient {
      * }
      * ```
      */
-    async exchangeCodeForSession(authCode) {
+    async exchangeCodeForSession(authCode, options) {
         await this.initializePromise;
         if (this.lock != null) {
             // TODO(v3): remove legacy lock path
             return this._acquireLock(this.lockAcquireTimeout, async () => {
-                return this._exchangeCodeForSession(authCode);
+                return this._exchangeCodeForSession(authCode, options);
             });
         }
-        return this._exchangeCodeForSession(authCode);
+        return this._exchangeCodeForSession(authCode, options);
     }
     /**
      * Signs in a user by verifying a message signed by the user's private key.
@@ -73603,8 +73874,23 @@ class GoTrueClient {
             throw error;
         }
     }
-    async _exchangeCodeForSession(authCode) {
-        const storageItem = await getItemAsync(this.storage, `${this.storageKey}-code-verifier`);
+    async _exchangeCodeForSession(authCode, options) {
+        const hasExplicitFlowId = (options === null || options === void 0 ? void 0 : options.flowId) != null;
+        const requestedFlowId = hasExplicitFlowId
+            ? validatePKCEFlowId(options === null || options === void 0 ? void 0 : options.flowId)
+            : isBrowser()
+                ? validatePKCEFlowId(parseParametersFromURL(window.location.href)[PKCE_FLOW_ID_PARAM])
+                : null;
+        if (hasExplicitFlowId && !requestedFlowId) {
+            this._debug('#_exchangeCodeForSession()', 'provided flowId is not a valid flow id', options === null || options === void 0 ? void 0 : options.flowId);
+        }
+        // With a flow id (explicit or from the callback URL) the lookup is
+        // slot-only and a miss fails fast — see retrievePKCEVerifier. An invalid
+        // explicit flow id also fails fast rather than borrowing another flow's
+        // verifier.
+        const { verifier: storageItem, flowId } = hasExplicitFlowId && !requestedFlowId
+            ? { verifier: null, flowId: null }
+            : await retrievePKCEVerifier(this.storage, this.storageKey, requestedFlowId);
         const [codeVerifier, redirectType] = (storageItem !== null && storageItem !== void 0 ? storageItem : '').split('/');
         try {
             if (!codeVerifier && this.flowType === 'pkce') {
@@ -73618,7 +73904,7 @@ class GoTrueClient {
                 },
                 xform: _sessionResponse,
             });
-            await removeItemAsync(this.storage, `${this.storageKey}-code-verifier`);
+            await removePKCEVerifier(this.storage, this.storageKey, flowId);
             if (error) {
                 throw error;
             }
@@ -73636,7 +73922,7 @@ class GoTrueClient {
             return this._returnResult({ data: Object.assign(Object.assign({}, data), { redirectType: redirectType !== null && redirectType !== void 0 ? redirectType : null }), error });
         }
         catch (error) {
-            await removeItemAsync(this.storage, `${this.storageKey}-code-verifier`);
+            await removePKCEVerifier(this.storage, this.storageKey, flowId);
             if (isAuthError(error)) {
                 return this._returnResult({
                     data: { user: null, session: null, redirectType: null },
@@ -73835,6 +74121,7 @@ class GoTrueClient {
      */
     async signInWithOtp(credentials) {
         var _a, _b, _c, _d, _f;
+        let flowId = null;
         try {
             if ('email' in credentials) {
                 const { email, options } = credentials;
@@ -73842,7 +74129,7 @@ class GoTrueClient {
                 let codeChallengeMethod = null;
                 if (this.flowType === 'pkce') {
                     ;
-                    [codeChallenge, codeChallengeMethod] = await getCodeChallengeAndMethod(this.storage, this.storageKey);
+                    [codeChallenge, codeChallengeMethod, flowId] = await this._getCodeChallengeAndMethod();
                 }
                 const { error } = await _request(this.fetch, 'POST', `${this.url}/otp`, {
                     headers: this.headers,
@@ -73854,7 +74141,7 @@ class GoTrueClient {
                         code_challenge: codeChallenge,
                         code_challenge_method: codeChallengeMethod,
                     },
-                    redirectTo: options === null || options === void 0 ? void 0 : options.emailRedirectTo,
+                    redirectTo: this._maybeAppendFlowIdToRedirect(options === null || options === void 0 ? void 0 : options.emailRedirectTo, flowId),
                 });
                 return this._returnResult({ data: { user: null, session: null }, error });
             }
@@ -73878,7 +74165,7 @@ class GoTrueClient {
             throw new AuthInvalidCredentialsError('You must provide either an email or phone number.');
         }
         catch (error) {
-            await removeItemAsync(this.storage, `${this.storageKey}-code-verifier`);
+            await removePKCEVerifier(this.storage, this.storageKey, flowId);
             if (isAuthError(error)) {
                 return this._returnResult({ data: { user: null, session: null }, error });
             }
@@ -74113,29 +74400,30 @@ class GoTrueClient {
      * ```
      */
     async signInWithSSO(params) {
-        var _a, _b, _c, _d, _f;
+        var _a, _b, _c, _d;
+        let flowId = null;
         try {
             let codeChallenge = null;
             let codeChallengeMethod = null;
             if (this.flowType === 'pkce') {
                 ;
-                [codeChallenge, codeChallengeMethod] = await getCodeChallengeAndMethod(this.storage, this.storageKey);
+                [codeChallenge, codeChallengeMethod, flowId] = await this._getCodeChallengeAndMethod();
             }
             const result = await _request(this.fetch, 'POST', `${this.url}/sso`, {
-                body: Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, ('providerId' in params ? { provider_id: params.providerId } : null)), ('domain' in params ? { domain: params.domain } : null)), { redirect_to: (_b = (_a = params.options) === null || _a === void 0 ? void 0 : _a.redirectTo) !== null && _b !== void 0 ? _b : undefined }), (((_c = params === null || params === void 0 ? void 0 : params.options) === null || _c === void 0 ? void 0 : _c.captchaToken)
+                body: Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, ('providerId' in params ? { provider_id: params.providerId } : null)), ('domain' in params ? { domain: params.domain } : null)), { redirect_to: this._maybeAppendFlowIdToRedirect((_a = params.options) === null || _a === void 0 ? void 0 : _a.redirectTo, flowId) }), (((_b = params === null || params === void 0 ? void 0 : params.options) === null || _b === void 0 ? void 0 : _b.captchaToken)
                     ? { gotrue_meta_security: { captcha_token: params.options.captchaToken } }
                     : null)), { skip_http_redirect: true, code_challenge: codeChallenge, code_challenge_method: codeChallengeMethod }),
                 headers: this.headers,
                 xform: _ssoResponse,
             });
             // Automatically redirect in browser unless skipBrowserRedirect is true
-            if (((_d = result.data) === null || _d === void 0 ? void 0 : _d.url) && isBrowser() && !((_f = params.options) === null || _f === void 0 ? void 0 : _f.skipBrowserRedirect)) {
+            if (((_c = result.data) === null || _c === void 0 ? void 0 : _c.url) && isBrowser() && !((_d = params.options) === null || _d === void 0 ? void 0 : _d.skipBrowserRedirect)) {
                 window.location.assign(result.data.url);
             }
             return this._returnResult(result);
         }
         catch (error) {
-            await removeItemAsync(this.storage, `${this.storageKey}-code-verifier`);
+            await removePKCEVerifier(this.storage, this.storageKey, flowId);
             if (isAuthError(error)) {
                 return this._returnResult({ data: null, error });
             }
@@ -74255,6 +74543,7 @@ class GoTrueClient {
      * ```
      */
     async resend(credentials) {
+        let flowId = null;
         try {
             const endpoint = `${this.url}/resend`;
             if ('email' in credentials) {
@@ -74263,7 +74552,7 @@ class GoTrueClient {
                 let codeChallengeMethod = null;
                 if (this.flowType === 'pkce') {
                     ;
-                    [codeChallenge, codeChallengeMethod] = await getCodeChallengeAndMethod(this.storage, this.storageKey);
+                    [codeChallenge, codeChallengeMethod, flowId] = await this._getCodeChallengeAndMethod();
                 }
                 const { error } = await _request(this.fetch, 'POST', endpoint, {
                     headers: this.headers,
@@ -74274,10 +74563,10 @@ class GoTrueClient {
                         code_challenge: codeChallenge,
                         code_challenge_method: codeChallengeMethod,
                     },
-                    redirectTo: options === null || options === void 0 ? void 0 : options.emailRedirectTo,
+                    redirectTo: this._maybeAppendFlowIdToRedirect(options === null || options === void 0 ? void 0 : options.emailRedirectTo, flowId),
                 });
                 if (error) {
-                    await removeItemAsync(this.storage, `${this.storageKey}-code-verifier`);
+                    await removePKCEVerifier(this.storage, this.storageKey, flowId);
                 }
                 return this._returnResult({ data: { user: null, session: null }, error });
             }
@@ -74299,7 +74588,7 @@ class GoTrueClient {
             throw new AuthInvalidCredentialsError('You must provide either an email or phone number and a type');
         }
         catch (error) {
-            await removeItemAsync(this.storage, `${this.storageKey}-code-verifier`);
+            await removePKCEVerifier(this.storage, this.storageKey, flowId);
             if (isAuthError(error)) {
                 return this._returnResult({ data: { user: null, session: null }, error });
             }
@@ -74701,7 +74990,6 @@ class GoTrueClient {
                     // JWT contains a `session_id` which does not correspond to an active
                     // session in the database, indicating the user is signed out.
                     await this._removeSession();
-                    await removeItemAsync(this.storage, `${this.storageKey}-code-verifier`);
                 }
                 return this._returnResult({ data: { user: null }, error });
             }
@@ -74833,6 +75121,7 @@ class GoTrueClient {
         return await this._updateUser(attributes, options);
     }
     async _updateUser(attributes, options = {}) {
+        let flowId = null;
         try {
             return await this._useSession(async (result) => {
                 const { data: sessionData, error: sessionError } = result;
@@ -74847,11 +75136,11 @@ class GoTrueClient {
                 let codeChallengeMethod = null;
                 if (this.flowType === 'pkce' && attributes.email != null) {
                     ;
-                    [codeChallenge, codeChallengeMethod] = await getCodeChallengeAndMethod(this.storage, this.storageKey);
+                    [codeChallenge, codeChallengeMethod, flowId] = await this._getCodeChallengeAndMethod();
                 }
                 const { data, error: userError } = await _request(this.fetch, 'PUT', `${this.url}/user`, {
                     headers: this.headers,
-                    redirectTo: options === null || options === void 0 ? void 0 : options.emailRedirectTo,
+                    redirectTo: this._maybeAppendFlowIdToRedirect(options === null || options === void 0 ? void 0 : options.emailRedirectTo, flowId),
                     body: Object.assign(Object.assign({}, attributes), { code_challenge: codeChallenge, code_challenge_method: codeChallengeMethod }),
                     jwt: session.access_token,
                     xform: _userResponse,
@@ -74866,7 +75155,7 @@ class GoTrueClient {
             });
         }
         catch (error) {
-            await removeItemAsync(this.storage, `${this.storageKey}-code-verifier`);
+            await removePKCEVerifier(this.storage, this.storageKey, flowId);
             if (isAuthError(error)) {
                 return this._returnResult({ data: { user: null }, error });
             }
@@ -75259,11 +75548,14 @@ class GoTrueClient {
                 this._debug('#_initialize()', 'begin', 'is PKCE flow', true);
                 if (!params.code)
                     throw new AuthPKCEGrantCodeExchangeError('No code detected.');
-                const { data, error } = await this._exchangeCodeForSession(params.code);
+                const { data, error } = await this._exchangeCodeForSession(params.code, {
+                    flowId: params[PKCE_FLOW_ID_PARAM],
+                });
                 if (error)
                     throw error;
                 const url = new URL(window.location.href);
                 url.searchParams.delete('code');
+                url.searchParams.delete(PKCE_FLOW_ID_PARAM);
                 window.history.replaceState(window.history.state, '', url.toString());
                 return {
                     data: { session: data.session, redirectType: (_a = data.redirectType) !== null && _a !== void 0 ? _a : null },
@@ -75333,8 +75625,16 @@ class GoTrueClient {
      * Checks if the current URL and backing storage contain parameters given by a PKCE flow
      */
     async _isPKCECallback(params) {
+        if (!params.code) {
+            return false;
+        }
+        const flowId = validatePKCEFlowId(params[PKCE_FLOW_ID_PARAM]);
+        if (flowId &&
+            (await getItemAsync(this.storage, pkceVerifierSlotKey(this.storageKey, flowId)))) {
+            return true;
+        }
         const currentStorageContent = await getItemAsync(this.storage, `${this.storageKey}-code-verifier`);
-        return !!(params.code && currentStorageContent);
+        return !!currentStorageContent;
     }
     /**
      * Inside a browser context, `signOut()` will remove the logged in user from the browser session and log them out - removing all items from localstorage and then trigger a `"SIGNED_OUT"` event.
@@ -75392,7 +75692,6 @@ class GoTrueClient {
             var _a;
             const removeCurrentSession = async () => {
                 await this._removeSession();
-                await removeItemAsync(this.storage, `${this.storageKey}-code-verifier`);
             };
             const { data, error: sessionError } = result;
             if (sessionError && !isAuthSessionMissingError(sessionError)) {
@@ -75636,7 +75935,16 @@ class GoTrueClient {
             catch (err) {
                 await ((_b = this.stateChangeEmitters.get(id)) === null || _b === void 0 ? void 0 : _b.callback('INITIAL_SESSION', null));
                 this._debug('INITIAL_SESSION', 'callback id', id, 'error', err);
-                if (isAuthSessionMissingError(err)) {
+                if (isAuthSessionMissingError(err) ||
+                    isAuthRetryableFetchError(err) ||
+                    (isAuthApiError(err) &&
+                        (err.code === 'refresh_token_not_found' ||
+                            err.code === 'refresh_token_already_used' ||
+                            err.code === 'session_expired'))) {
+                    // A missing session, a transient/aborted network failure (e.g. a
+                    // superseded page navigation cancelling the in-flight request), or
+                    // a dead refresh token (e.g. stale SSR cookies) is not an
+                    // application error — warn rather than surface it raw.
                     console.warn(err);
                 }
                 else {
@@ -75715,8 +76023,9 @@ class GoTrueClient {
     async resetPasswordForEmail(email, options = {}) {
         let codeChallenge = null;
         let codeChallengeMethod = null;
+        let flowId = null;
         if (this.flowType === 'pkce') {
-            [codeChallenge, codeChallengeMethod] = await getCodeChallengeAndMethod(this.storage, this.storageKey, true // isPasswordRecovery
+            [codeChallenge, codeChallengeMethod, flowId] = await this._getCodeChallengeAndMethod(true // isPasswordRecovery
             );
         }
         try {
@@ -75728,11 +76037,11 @@ class GoTrueClient {
                     gotrue_meta_security: { captcha_token: options.captchaToken },
                 },
                 headers: this.headers,
-                redirectTo: options.redirectTo,
+                redirectTo: this._maybeAppendFlowIdToRedirect(options.redirectTo, flowId),
             });
         }
         catch (error) {
-            await removeItemAsync(this.storage, `${this.storageKey}-code-verifier`);
+            await removePKCEVerifier(this.storage, this.storageKey, flowId);
             if (isAuthError(error)) {
                 return this._returnResult({ data: null, error });
             }
@@ -75815,7 +76124,8 @@ class GoTrueClient {
      * {
      *   data: {
      *     provider: 'github',
-     *     url: <PROVIDER_URL_TO_REDIRECT_TO>
+     *     url: <PROVIDER_URL_TO_REDIRECT_TO>,
+     *     flowId: <PKCE_FLOW_ID_OR_NULL>
      *   },
      *   error: null
      * }
@@ -75829,18 +76139,20 @@ class GoTrueClient {
     }
     async linkIdentityOAuth(credentials) {
         var _a;
+        let flowId = null;
         try {
             const { data, error } = await this._useSession(async (result) => {
                 var _a, _b, _c, _d, _f;
                 const { data, error } = result;
                 if (error)
                     throw error;
-                const url = await this._getUrlForProvider(`${this.url}/user/identities/authorize`, credentials.provider, {
+                const { url, flowId: urlFlowId } = await this._getUrlForProvider(`${this.url}/user/identities/authorize`, credentials.provider, {
                     redirectTo: (_a = credentials.options) === null || _a === void 0 ? void 0 : _a.redirectTo,
                     scopes: (_b = credentials.options) === null || _b === void 0 ? void 0 : _b.scopes,
                     queryParams: (_c = credentials.options) === null || _c === void 0 ? void 0 : _c.queryParams,
                     skipBrowserRedirect: true,
                 });
+                flowId = urlFlowId;
                 return await _request(this.fetch, 'GET', url, {
                     headers: this.headers,
                     jwt: (_f = (_d = data.session) === null || _d === void 0 ? void 0 : _d.access_token) !== null && _f !== void 0 ? _f : undefined,
@@ -75852,13 +76164,16 @@ class GoTrueClient {
                 window.location.assign(data === null || data === void 0 ? void 0 : data.url);
             }
             return this._returnResult({
-                data: { provider: credentials.provider, url: data === null || data === void 0 ? void 0 : data.url },
+                data: { provider: credentials.provider, url: data === null || data === void 0 ? void 0 : data.url, flowId },
                 error: null,
             });
         }
         catch (error) {
             if (isAuthError(error)) {
-                return this._returnResult({ data: { provider: credentials.provider, url: null }, error });
+                return this._returnResult({
+                    data: { provider: credentials.provider, url: null, flowId },
+                    error,
+                });
             }
             throw error;
         }
@@ -75901,7 +76216,7 @@ class GoTrueClient {
                 return this._returnResult({ data, error });
             }
             catch (error) {
-                await removeItemAsync(this.storage, `${this.storageKey}-code-verifier`);
+                await removePKCEVerifier(this.storage, this.storageKey, null);
                 if (isAuthError(error)) {
                     return this._returnResult({ data: { user: null, session: null }, error });
                 }
@@ -76006,7 +76321,7 @@ class GoTrueClient {
         return isValidSession;
     }
     async _handleProviderSignIn(provider, options) {
-        const url = await this._getUrlForProvider(`${this.url}/authorize`, provider, {
+        const { url, flowId } = await this._getUrlForProvider(`${this.url}/authorize`, provider, {
             redirectTo: options.redirectTo,
             scopes: options.scopes,
             queryParams: options.queryParams,
@@ -76016,7 +76331,7 @@ class GoTrueClient {
         if (isBrowser() && !options.skipBrowserRedirect) {
             window.location.assign(url);
         }
-        return { data: { provider, url }, error: null };
+        return { data: { provider, url, flowId }, error: null };
     }
     /**
      * Recovers the session from LocalStorage and refreshes the token
@@ -76113,7 +76428,16 @@ class GoTrueClient {
         }
         catch (err) {
             this._debug(debugName, 'error', err);
-            console.error(err);
+            if (isAuthRetryableFetchError(err)) {
+                // Transient/aborted network failure during session recovery (e.g. a
+                // superseded page navigation cancelling the in-flight request). Warn
+                // rather than surface it raw; the session is untouched and recovery
+                // will run again on the next load.
+                console.warn(err);
+            }
+            else {
+                console.error(err);
+            }
             return;
         }
         finally {
@@ -76312,7 +76636,6 @@ class GoTrueClient {
         // _saveSession is always called whenever a new session has been acquired
         // so we can safely suppress the warning returned by future getSession calls
         this.suppressGetSessionWarning = true;
-        await removeItemAsync(this.storage, `${this.storageKey}-code-verifier`);
         // Create a shallow copy to work with, to avoid mutating the original session object if it's used elsewhere
         const sessionToProcess = Object.assign({}, session);
         const userIsProxy = sessionToProcess.user && sessionToProcess.user.__isUserNotAvailableProxy === true;
@@ -76350,7 +76673,7 @@ class GoTrueClient {
         this.lastRefreshFailure = null;
         this.suppressGetSessionWarning = false;
         await removeItemAsync(this.storage, this.storageKey);
-        await removeItemAsync(this.storage, this.storageKey + '-code-verifier');
+        await removeAllPKCEVerifiers(this.storage, this.storageKey);
         await removeItemAsync(this.storage, this.storageKey + '-user');
         if (this.userStorage) {
             await removeItemAsync(this.userStorage, this.storageKey + '-user');
@@ -76716,15 +77039,22 @@ class GoTrueClient {
      * @param options.queryParams An object of key-value pairs containing query parameters granted to the OAuth application.
      */
     async _getUrlForProvider(url, provider, options) {
+        let redirectTo = options === null || options === void 0 ? void 0 : options.redirectTo;
+        let codeChallenge = null;
+        let codeChallengeMethod = null;
+        let flowId = null;
+        if (this.flowType === 'pkce') {
+            [codeChallenge, codeChallengeMethod, flowId] = await this._getCodeChallengeAndMethod();
+            redirectTo = this._maybeAppendFlowIdToRedirect(redirectTo, flowId);
+        }
         const urlParams = [`provider=${encodeURIComponent(provider)}`];
-        if (options === null || options === void 0 ? void 0 : options.redirectTo) {
-            urlParams.push(`redirect_to=${encodeURIComponent(options.redirectTo)}`);
+        if (redirectTo) {
+            urlParams.push(`redirect_to=${encodeURIComponent(redirectTo)}`);
         }
         if (options === null || options === void 0 ? void 0 : options.scopes) {
             urlParams.push(`scopes=${encodeURIComponent(options.scopes)}`);
         }
-        if (this.flowType === 'pkce') {
-            const [codeChallenge, codeChallengeMethod] = await getCodeChallengeAndMethod(this.storage, this.storageKey);
+        if (codeChallenge != null && codeChallengeMethod != null) {
             const flowParams = new URLSearchParams({
                 code_challenge: `${encodeURIComponent(codeChallenge)}`,
                 code_challenge_method: `${encodeURIComponent(codeChallengeMethod)}`,
@@ -76738,7 +77068,27 @@ class GoTrueClient {
         if (options === null || options === void 0 ? void 0 : options.skipBrowserRedirect) {
             urlParams.push(`skip_http_redirect=${options.skipBrowserRedirect}`);
         }
-        return `${url}?${urlParams.join('&')}`;
+        return { url: `${url}?${urlParams.join('&')}`, flowId };
+    }
+    /**
+     * Appends the reserved flow id parameter to a redirect URL so the callback
+     * can be matched to the verifier stored for its flow. Opt-in via
+     * `experimental.appendPkceFlowIdToRedirects`: redirect URLs are validated
+     * against the project's allow list including the query string, so an extra
+     * parameter can stop exact (non-wildcard) entries from matching.
+     */
+    _maybeAppendFlowIdToRedirect(redirectTo, flowId) {
+        if (!redirectTo || !flowId || !this.experimental.appendPkceFlowIdToRedirects) {
+            return redirectTo !== null && redirectTo !== void 0 ? redirectTo : undefined;
+        }
+        return appendFlowIdToRedirectTo(redirectTo, flowId);
+    }
+    /**
+     * Generates and stores a PKCE challenge/verifier pair for a new flow,
+     * logging any pending verifier the bounded slot ring evicts.
+     */
+    async _getCodeChallengeAndMethod(isPasswordRecovery = false) {
+        return getCodeChallengeAndMethod(this.storage, this.storageKey, isPasswordRecovery, (evictedFlowId) => this._debug('#_getCodeChallengeAndMethod()', 'evicted oldest pending PKCE verifier slot', evictedFlowId));
     }
     async _unenroll(params) {
         try {
@@ -77646,7 +77996,7 @@ GoTrueClient.nextInstanceID = {};
 const AuthClient = GoTrueClient;
 
 //#region src/lib/version.ts
-const version$1 = "2.110.2";
+const version$1 = "2.111.0";
 
 //#endregion
 //#region src/lib/constants.ts
@@ -77661,7 +78011,8 @@ else if (typeof navigator !== "undefined" && navigator.product === "ReactNative"
 else {
 	var _process$version;
 	JS_ENV = "node";
-	JS_RUNTIME_VERSION = typeof process !== "undefined" ? (_process$version = process.version) === null || _process$version === void 0 ? void 0 : _process$version.replace(/^v/, "") : void 0;
+	const _process = globalThis["process"];
+	JS_RUNTIME_VERSION = _process === null || _process === void 0 || (_process$version = _process["version"]) === null || _process$version === void 0 ? void 0 : _process$version.replace(/^v/, "");
 }
 const _runtimeMeta = [`runtime=${JS_ENV}`];
 if (JS_RUNTIME_VERSION) _runtimeMeta.push(`runtime-version=${JS_RUNTIME_VERSION}`);
@@ -77966,18 +78317,43 @@ const resolveFetch = (customFetch) => {
 const resolveHeadersConstructor = () => {
 	return Headers;
 };
-const fetchWithAuth = (supabaseKey, supabaseUrl, getAccessToken, customFetch, tracePropagationOptions) => {
+/**
+* New-format Supabase API keys (`sb_publishable_…` / `sb_secret_…`) are not JWTs and
+* must never be sent as a Bearer token — they belong only in the `apikey` header.
+* All other keys (legacy JWT keys, `sb_temp_…` temporary keys, unrecognized `sb_`
+* subtypes) keep the Bearer fallback.
+*/
+const isNewApiKey = (key) => key.startsWith("sb_publishable_") || key.startsWith("sb_secret_");
+const TEMP_KEY_PREFIX = "sb_temp_";
+const warnedKeySubtypes = /* @__PURE__ */ new Set();
+/**
+* Warn (once per subtype) when an `sb_` key isn't a subtype this SDK version recognizes.
+* Never throws — the server, not the SDK, decides key validity. The key value is never
+* included in the message.
+*/
+const checkApiKeyFormat = (key) => {
+	var _key$match$, _key$match;
+	if (!key.startsWith("sb_") || isNewApiKey(key) || key.startsWith(TEMP_KEY_PREFIX)) return;
+	const subtype = (_key$match$ = (_key$match = key.match(/^sb_[a-zA-Z0-9]+_/)) === null || _key$match === void 0 ? void 0 : _key$match[0]) !== null && _key$match$ !== void 0 ? _key$match$ : "unknown";
+	if (warnedKeySubtypes.has(subtype)) return;
+	warnedKeySubtypes.add(subtype);
+	console.warn("@supabase/supabase-js: Unrecognized Supabase API key format. The client will proceed and send this key as-is; if you see authentication errors you may need to upgrade @supabase/supabase-js to a version that recognizes this key type.");
+};
+const fetchWithAuth = (supabaseKey, supabaseUrl, getAccessToken, customFetch, tracePropagationOptions, options) => {
 	const fetch$1 = resolveFetch(customFetch);
 	const HeadersConstructor = resolveHeadersConstructor();
 	const traceEnabled = (tracePropagationOptions === null || tracePropagationOptions === void 0 ? void 0 : tracePropagationOptions.enabled) === true;
 	const respectSampling = (tracePropagationOptions === null || tracePropagationOptions === void 0 ? void 0 : tracePropagationOptions.respectSamplingDecision) !== false;
 	const traceTargets = traceEnabled ? getDefaultPropagationTargets(supabaseUrl) : null;
+	const allowKeyAsBearer = !((options === null || options === void 0 ? void 0 : options.omitApiKeyAsBearer) && isNewApiKey(supabaseKey));
 	return async (input, init) => {
-		var _await$getAccessToken;
-		const accessToken = (_await$getAccessToken = await getAccessToken()) !== null && _await$getAccessToken !== void 0 ? _await$getAccessToken : supabaseKey;
+		const realToken = await getAccessToken();
 		let headers = new HeadersConstructor(init === null || init === void 0 ? void 0 : init.headers);
 		if (!headers.has("apikey")) headers.set("apikey", supabaseKey);
-		if (!headers.has("Authorization")) headers.set("Authorization", `Bearer ${accessToken}`);
+		if (!headers.has("Authorization")) {
+			const bearer = realToken !== null && realToken !== void 0 ? realToken : allowKeyAsBearer ? supabaseKey : null;
+			if (bearer) headers.set("Authorization", `Bearer ${bearer}`);
+		}
 		if (traceTargets) {
 			const traceHeaders = await getTraceHeaders(input, traceTargets, respectSampling);
 			if (traceHeaders) {
@@ -78134,9 +78510,9 @@ var SupabaseClient = class {
 	* ```
 	*
 	* @exampleDescription Custom fetch implementation
-	* `supabase-js` uses the [`cross-fetch`](https://www.npmjs.com/package/cross-fetch) library to make HTTP requests,
+	* `supabase-js` uses the runtime's global `fetch` to make HTTP requests,
 	* but an alternative `fetch` implementation can be provided as an option.
-	* This is most useful in environments where `cross-fetch` is not compatible (for instance Cloudflare Workers).
+	* This is useful in environments where the global `fetch` is unavailable or where you want to customize request behavior.
 	*
 	* @example Custom fetch implementation
 	* ```js
@@ -78282,6 +78658,7 @@ var SupabaseClient = class {
 		this.supabaseKey = supabaseKey;
 		const baseUrl = validateSupabaseUrl(supabaseUrl);
 		if (!supabaseKey) throw new Error("supabaseKey is required.");
+		checkApiKeyFormat(supabaseKey);
 		this.realtimeUrl = new URL("realtime/v1", baseUrl);
 		this.realtimeUrl.protocol = this.realtimeUrl.protocol.replace("http", "ws");
 		this.authUrl = new URL("auth/v1", baseUrl);
@@ -78308,7 +78685,8 @@ var SupabaseClient = class {
 				throw new Error(`@supabase/supabase-js: Supabase Client is configured with the accessToken option, accessing supabase.auth.${String(prop)} is not possible`);
 			} });
 		}
-		this.fetch = fetchWithAuth(supabaseKey, supabaseUrl, this._getAccessToken.bind(this), settings.global.fetch, settings.tracePropagation);
+		this.fetch = fetchWithAuth(supabaseKey, supabaseUrl, this._getSessionToken.bind(this), settings.global.fetch, settings.tracePropagation);
+		this.functionsFetch = fetchWithAuth(supabaseKey, supabaseUrl, this._getSessionToken.bind(this), settings.global.fetch, settings.tracePropagation, { omitApiKeyAsBearer: true });
 		this.realtime = this._initRealtimeClient(_objectSpread2({
 			headers: this.headers,
 			accessToken: this._getAccessToken.bind(this),
@@ -78331,7 +78709,7 @@ var SupabaseClient = class {
 	get functions() {
 		return new FunctionsClient(this.functionsUrl.href, {
 			headers: this.headers,
-			customFetch: this.fetch
+			customFetch: this.functionsFetch
 		});
 	}
 	/**
@@ -78441,12 +78819,22 @@ var SupabaseClient = class {
 	removeAllChannels() {
 		return this.realtime.removeAllChannels();
 	}
-	async _getAccessToken() {
+	/**
+	* The raw session token — the custom `accessToken` result or the signed-in user's JWT —
+	* or `null` when there is no session. Unlike {@link _getAccessToken} it does not fall back
+	* to `supabaseKey`, so callers can distinguish "no session" from "has session".
+	*/
+	async _getSessionToken() {
 		var _this = this;
 		var _data$session$access_, _data$session;
 		if (_this.accessToken) return await _this.accessToken();
 		const { data } = await _this.auth.getSession();
-		return (_data$session$access_ = (_data$session = data.session) === null || _data$session === void 0 ? void 0 : _data$session.access_token) !== null && _data$session$access_ !== void 0 ? _data$session$access_ : _this.supabaseKey;
+		return (_data$session$access_ = (_data$session = data.session) === null || _data$session === void 0 ? void 0 : _data$session.access_token) !== null && _data$session$access_ !== void 0 ? _data$session$access_ : null;
+	}
+	async _getAccessToken() {
+		var _this2 = this;
+		var _await$this$_getSessi;
+		return (_await$this$_getSessi = await _this2._getSessionToken()) !== null && _await$this$_getSessi !== void 0 ? _await$this$_getSessi : _this2.supabaseKey;
 	}
 	_initSupabaseAuthClient({ autoRefreshToken, persistSession, detectSessionInUrl, storage, userStorage, storageKey, flowType, lock, debug, throwOnError, experimental, lockAcquireTimeout, skipAutoInitialize }, headers, fetch$1) {
 		const authHeaders = {
@@ -78482,7 +78870,7 @@ var SupabaseClient = class {
 		});
 	}
 	_handleTokenChanged(event, source, token) {
-		if ((event === "TOKEN_REFRESHED" || event === "SIGNED_IN") && this.changedAccessToken !== token) {
+		if ((event === "TOKEN_REFRESHED" || event === "SIGNED_IN" || event === "INITIAL_SESSION") && this.changedAccessToken !== token) {
 			this.changedAccessToken = token;
 			this.realtime.setAuth(token);
 		} else if (event === "SIGNED_OUT") {
@@ -78510,7 +78898,7 @@ const createClient = (supabaseUrl, supabaseKey, options) => {
 	return new SupabaseClient(supabaseUrl, supabaseKey, options);
 };
 function shouldShowDeprecationWarning() {
-	if (typeof window !== "undefined") return false;
+	if (typeof window !== "undefined" || globalThis["Deno"] !== void 0) return false;
 	const _process = globalThis["process"];
 	if (!_process) return false;
 	const processVersion = _process["version"];
