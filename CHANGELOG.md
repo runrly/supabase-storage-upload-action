@@ -1,5 +1,13 @@
 # supabase-storage-upload-action
 
+## 1.0.4
+
+### Patch Changes
+
+- c9cf928: Refresh bundled dependencies and regenerate the Action distribution.
+- 8400c60: Patch vulnerable transitive dependencies in the bundled Action.
+- ee4aad0: Simplify upload guard clauses while preserving validation diagnostics.
+
 ## 1.0.3
 
 ### Patch Changes
