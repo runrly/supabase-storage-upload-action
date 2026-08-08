@@ -37,14 +37,13 @@ function validateTag(tag: string): { stderr: string; status: number } {
 }
 
 describe("validate-release-tag.sh", () => {
-	test.each([
-		"v1.0",
-		"v1.0.0-rc.1",
-		"1.0.0",
-	])("rejects %s before inspecting GitHub state", (tag) => {
-		const result = validateTag(tag);
+	test.each(["v1.0", "v1.0.0-rc.1", "1.0.0"])(
+		"rejects %s before inspecting GitHub state",
+		(tag) => {
+			const result = validateTag(tag);
 
-		expect(result.status).not.toBe(0);
-		expect(result.stderr).toContain("tag must be a stable vX.Y.Z version");
-	});
+			expect(result.status).not.toBe(0);
+			expect(result.stderr).toContain("tag must be a stable vX.Y.Z version");
+		},
+	);
 });
