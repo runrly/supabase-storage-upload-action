@@ -28280,7 +28280,7 @@ var MediaTypes;
     });
 };
 
-var __awaiter$4 = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+var __awaiter$3 = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
         function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
@@ -28302,7 +28302,7 @@ class Summary {
      * @returns step summary file path
      */
     filePath() {
-        return __awaiter$4(this, void 0, void 0, function* () {
+        return __awaiter$3(this, void 0, void 0, function* () {
             if (this._filePath) {
                 return this._filePath;
             }
@@ -28346,7 +28346,7 @@ class Summary {
      * @returns {Promise<Summary>} summary instance
      */
     write(options) {
-        return __awaiter$4(this, void 0, void 0, function* () {
+        return __awaiter$3(this, void 0, void 0, function* () {
             const overwrite = !!(options === null || options === void 0 ? void 0 : options.overwrite);
             const filePath = yield this.filePath();
             const writeFunc = overwrite ? writeFile : appendFile;
@@ -28360,7 +28360,7 @@ class Summary {
      * @returns {Summary} summary instance
      */
     clear() {
-        return __awaiter$4(this, void 0, void 0, function* () {
+        return __awaiter$3(this, void 0, void 0, function* () {
             return this.emptyBuffer().write({ overwrite: true });
         });
     }
@@ -44349,7 +44349,7 @@ class SearchState {
     }
 }
 
-var __awaiter$3 = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+var __awaiter$2 = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
         function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
@@ -44390,7 +44390,7 @@ class DefaultGlobber {
         return this.searchPaths.slice();
     }
     glob() {
-        return __awaiter$3(this, void 0, void 0, function* () {
+        return __awaiter$2(this, void 0, void 0, function* () {
             var _a, e_1, _b, _c;
             const result = [];
             try {
@@ -44492,7 +44492,7 @@ class DefaultGlobber {
      * Constructs a DefaultGlobber
      */
     static create(patterns, options) {
-        return __awaiter$3(this, void 0, void 0, function* () {
+        return __awaiter$2(this, void 0, void 0, function* () {
             const result = new DefaultGlobber(options);
             if (IS_WINDOWS) {
                 patterns = patterns.replace(/\r\n/g, '\n');
@@ -44514,7 +44514,7 @@ class DefaultGlobber {
         });
     }
     static stat(item, options, traversalChain) {
-        return __awaiter$3(this, void 0, void 0, function* () {
+        return __awaiter$2(this, void 0, void 0, function* () {
             // Note:
             // `stat` returns info about the target of a symlink (or symlink chain)
             // `lstat` returns info about a symlink itself
@@ -44577,7 +44577,7 @@ class DefaultGlobber {
     function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
 };
 
-var __awaiter$2 = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+var __awaiter$1 = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
         function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
@@ -44593,7 +44593,7 @@ var __awaiter$2 = (undefined && undefined.__awaiter) || function (thisArg, _argu
  * @param options   Glob options
  */
 function create(patterns, options) {
-    return __awaiter$2(this, void 0, void 0, function* () {
+    return __awaiter$1(this, void 0, void 0, function* () {
         return yield DefaultGlobber.create(patterns, options);
     });
 }
@@ -56761,6 +56761,15 @@ function sameUpload(left, right) {
         left.cacheControl === right.cacheControl);
 }
 
+//#region src/lib/tracingRegistry.ts
+const EXTRACTOR_KEY = Symbol.for("@supabase/supabase-js.traceContextExtractor");
+/**
+* The currently registered trace context extractor, if any.
+*/
+function getTraceContextExtractor() {
+	return globalThis[EXTRACTOR_KEY];
+}
+
 /******************************************************************************
 Copyright (c) Microsoft Corporation.
 
@@ -56790,7 +56799,7 @@ function __rest(s, e) {
   return t;
 }
 
-function __awaiter$1(thisArg, _arguments, P, generator) {
+function __awaiter(thisArg, _arguments, P, generator) {
   function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
   return new (P || (P = Promise))(function (resolve, reject) {
       function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
@@ -57078,7 +57087,7 @@ class FunctionsClient {
      * ```
      */
     invoke(functionName_1) {
-        return __awaiter$1(this, arguments, void 0, function* (functionName, options = {}) {
+        return __awaiter(this, arguments, void 0, function* (functionName, options = {}) {
             var _a, _b;
             let timeoutId;
             let timeoutController;
@@ -57307,6 +57316,72 @@ var PostgrestError = class extends Error {
 		};
 	}
 };
+
+//#endregion
+//#region \0@oxc-project+runtime@0.103.0/helpers/typeof.js
+function _typeof$b(o) {
+	"@babel/helpers - typeof";
+	return _typeof$b = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function(o$1) {
+		return typeof o$1;
+	} : function(o$1) {
+		return o$1 && "function" == typeof Symbol && o$1.constructor === Symbol && o$1 !== Symbol.prototype ? "symbol" : typeof o$1;
+	}, _typeof$b(o);
+}
+
+//#endregion
+//#region \0@oxc-project+runtime@0.103.0/helpers/toPrimitive.js
+function toPrimitive$2(t, r) {
+	if ("object" != _typeof$b(t) || !t) return t;
+	var e = t[Symbol.toPrimitive];
+	if (void 0 !== e) {
+		var i = e.call(t, r);
+		if ("object" != _typeof$b(i)) return i;
+		throw new TypeError("@@toPrimitive must return a primitive value.");
+	}
+	return ("string" === r ? String : Number)(t);
+}
+
+//#endregion
+//#region \0@oxc-project+runtime@0.103.0/helpers/toPropertyKey.js
+function toPropertyKey$2(t) {
+	var i = toPrimitive$2(t, "string");
+	return "symbol" == _typeof$b(i) ? i : i + "";
+}
+
+//#endregion
+//#region \0@oxc-project+runtime@0.103.0/helpers/defineProperty.js
+function _defineProperty$5(e, r, t) {
+	return (r = toPropertyKey$2(r)) in e ? Object.defineProperty(e, r, {
+		value: t,
+		enumerable: true,
+		configurable: true,
+		writable: true
+	}) : e[r] = t, e;
+}
+
+//#endregion
+//#region \0@oxc-project+runtime@0.103.0/helpers/objectSpread2.js
+function ownKeys$5(e, r) {
+	var t = Object.keys(e);
+	if (Object.getOwnPropertySymbols) {
+		var o = Object.getOwnPropertySymbols(e);
+		r && (o = o.filter(function(r$1) {
+			return Object.getOwnPropertyDescriptor(e, r$1).enumerable;
+		})), t.push.apply(t, o);
+	}
+	return t;
+}
+function _objectSpread2$2(e) {
+	for (var r = 1; r < arguments.length; r++) {
+		var t = null != arguments[r] ? arguments[r] : {};
+		r % 2 ? ownKeys$5(Object(t), true).forEach(function(r$1) {
+			_defineProperty$5(e, r$1, t[r$1]);
+		}) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys$5(Object(t)).forEach(function(r$1) {
+			Object.defineProperty(e, r$1, Object.getOwnPropertyDescriptor(t, r$1));
+		});
+	}
+	return e;
+}
 
 //#endregion
 //#region src/PostgrestBuilder.ts
@@ -57635,6 +57710,10 @@ var PostgrestBuilder = class {
 				count = null;
 				status = 406;
 				statusText = "Not Acceptable";
+				if (_this2.shouldThrowOnError) {
+					var _error$hint;
+					throw new PostgrestError(_objectSpread2$2(_objectSpread2$2({}, error), {}, { hint: (_error$hint = error.hint) !== null && _error$hint !== void 0 ? _error$hint : "" }));
+				}
 			} else if (data.length === 1) data = data[0];
 			else data = null;
 		} else {
@@ -57823,7 +57902,7 @@ var PostgrestTransformBuilder = class extends PostgrestBuilder {
 	*     }
 	*   ],
 	*   "status": 201,
-	*   "statusText": "Created"
+	*   "statusText": ""
 	* }
 	* ```
 	*/
@@ -58260,8 +58339,8 @@ var PostgrestTransformBuilder = class extends PostgrestBuilder {
 	*       "hint": "",
 	*       "code": ""
 	*     },
-	*     "status": 400,
-	*     "statusText": "Bad Request"
+	*     "status": 0,
+	*     "statusText": ""
 	*   }
 	*
 	* ```
@@ -59285,7 +59364,7 @@ var PostgrestQueryBuilder = class {
 	*     "message": "permission denied for table characters"
 	*   },
 	*   "status": 401,
-	*   "statusText": "Unauthorized"
+	*   "statusText": ""
 	* }
 	* ```
 	*
@@ -60062,7 +60141,7 @@ var PostgrestQueryBuilder = class {
 	* ```json
 	* {
 	*   "status": 201,
-	*   "statusText": "Created"
+	*   "statusText": ""
 	* }
 	* ```
 	*
@@ -60099,7 +60178,7 @@ var PostgrestQueryBuilder = class {
 	*     }
 	*   ],
 	*   "status": 201,
-	*   "statusText": "Created"
+	*   "statusText": ""
 	* }
 	* ```
 	*
@@ -60133,7 +60212,7 @@ var PostgrestQueryBuilder = class {
 	*     "message": "duplicate key value violates unique constraint \"countries_pkey\""
 	*   },
 	*   "status": 409,
-	*   "statusText": "Conflict"
+	*   "statusText": ""
 	* }
 	* ```
 	*/
@@ -60280,7 +60359,7 @@ var PostgrestQueryBuilder = class {
 	*     }
 	*   ],
 	*   "status": 201,
-	*   "statusText": "Created"
+	*   "statusText": ""
 	* }
 	* ```
 	*
@@ -60329,7 +60408,7 @@ var PostgrestQueryBuilder = class {
 	*     }
 	*   ],
 	*   "status": 201,
-	*   "statusText": "Created"
+	*   "statusText": ""
 	* }
 	* ```
 	*
@@ -60374,7 +60453,7 @@ var PostgrestQueryBuilder = class {
 	*     "message": "duplicate key value violates unique constraint \"users_handle_key\""
 	*   },
 	*   "status": 409,
-	*   "statusText": "Conflict"
+	*   "statusText": ""
 	* }
 	* ```
 	*/
@@ -60453,7 +60532,7 @@ var PostgrestQueryBuilder = class {
 	* ```json
 	* {
 	*   "status": 204,
-	*   "statusText": "No Content"
+	*   "statusText": ""
 	* }
 	* ```
 	*
@@ -60621,7 +60700,7 @@ var PostgrestQueryBuilder = class {
 	* ```json
 	* {
 	*   "status": 204,
-	*   "statusText": "No Content"
+	*   "statusText": ""
 	* }
 	* ```
 	*
@@ -60691,7 +60770,7 @@ var PostgrestQueryBuilder = class {
 	* ```json
 	* {
 	*   "status": 204,
-	*   "statusText": "No Content"
+	*   "statusText": ""
 	* }
 	* ```
 	*/
@@ -60711,72 +60790,6 @@ var PostgrestQueryBuilder = class {
 		});
 	}
 };
-
-//#endregion
-//#region \0@oxc-project+runtime@0.103.0/helpers/typeof.js
-function _typeof$b(o) {
-	"@babel/helpers - typeof";
-	return _typeof$b = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function(o$1) {
-		return typeof o$1;
-	} : function(o$1) {
-		return o$1 && "function" == typeof Symbol && o$1.constructor === Symbol && o$1 !== Symbol.prototype ? "symbol" : typeof o$1;
-	}, _typeof$b(o);
-}
-
-//#endregion
-//#region \0@oxc-project+runtime@0.103.0/helpers/toPrimitive.js
-function toPrimitive$2(t, r) {
-	if ("object" != _typeof$b(t) || !t) return t;
-	var e = t[Symbol.toPrimitive];
-	if (void 0 !== e) {
-		var i = e.call(t, r);
-		if ("object" != _typeof$b(i)) return i;
-		throw new TypeError("@@toPrimitive must return a primitive value.");
-	}
-	return ("string" === r ? String : Number)(t);
-}
-
-//#endregion
-//#region \0@oxc-project+runtime@0.103.0/helpers/toPropertyKey.js
-function toPropertyKey$2(t) {
-	var i = toPrimitive$2(t, "string");
-	return "symbol" == _typeof$b(i) ? i : i + "";
-}
-
-//#endregion
-//#region \0@oxc-project+runtime@0.103.0/helpers/defineProperty.js
-function _defineProperty$5(e, r, t) {
-	return (r = toPropertyKey$2(r)) in e ? Object.defineProperty(e, r, {
-		value: t,
-		enumerable: true,
-		configurable: true,
-		writable: true
-	}) : e[r] = t, e;
-}
-
-//#endregion
-//#region \0@oxc-project+runtime@0.103.0/helpers/objectSpread2.js
-function ownKeys$5(e, r) {
-	var t = Object.keys(e);
-	if (Object.getOwnPropertySymbols) {
-		var o = Object.getOwnPropertySymbols(e);
-		r && (o = o.filter(function(r$1) {
-			return Object.getOwnPropertyDescriptor(e, r$1).enumerable;
-		})), t.push.apply(t, o);
-	}
-	return t;
-}
-function _objectSpread2$2(e) {
-	for (var r = 1; r < arguments.length; r++) {
-		var t = null != arguments[r] ? arguments[r] : {};
-		r % 2 ? ownKeys$5(Object(t), true).forEach(function(r$1) {
-			_defineProperty$5(e, r$1, t[r$1]);
-		}) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys$5(Object(t)).forEach(function(r$1) {
-			Object.defineProperty(e, r$1, Object.getOwnPropertyDescriptor(t, r$1));
-		});
-	}
-	return e;
-}
 
 //#endregion
 //#region src/PostgrestClient.ts
@@ -61202,7 +61215,7 @@ class WebSocketFactory {
 // - Debugging and support (identifying which version is running)
 // - Telemetry and logging (version reporting in errors/analytics)
 // - Ensuring build artifacts match the published package version
-const version$4 = '2.111.0';
+const version$4 = '2.112.3';
 
 const DEFAULT_VERSION = `realtime-js/${version$4}`;
 const VSN_1_0_0 = '1.0.0';
@@ -64166,6 +64179,10 @@ class RealtimeChannel {
      *   })
      * ```
      *
+     * Registering the same `postgres_changes` filter more than once on a channel is a no-op: the
+     * duplicate is ignored and an error is logged, since the server only ever creates one
+     * subscription per distinct filter.
+     *
      * @example Listen to all database changes
      * ```js
      * supabase
@@ -64470,6 +64487,7 @@ class RealtimeChannel {
     }
     /** @internal */
     _on(type, filter, callback) {
+        var _a;
         const typeLower = type.toLocaleLowerCase();
         // Serialize a postgres_changes filter builder into its string form so the
         // rest of the pipeline (join payload, server binding match) sees a string.
@@ -64481,6 +64499,15 @@ class RealtimeChannel {
                 filterValue !== null &&
                 typeof filterValue.build === 'function')) {
             filter = Object.assign(Object.assign({}, filter), { filter: filterValue.build() });
+        }
+        // The server collapses identical postgres_changes filters, so keeping a duplicate here would
+        // desync the client and server binding lists and make `subscribe()` fail with a mismatch.
+        if (typeLower === REALTIME_LISTEN_TYPES.POSTGRES_CHANGES) {
+            const duplicate = (_a = this.bindings[typeLower]) === null || _a === void 0 ? void 0 : _a.find((bind) => RealtimeChannel.isSamePostgresFilter(bind.filter, filter));
+            if (duplicate) {
+                this.socket.log('error', `duplicate \`postgres_changes\` binding for ${this.topic} ignored`, filter);
+                return this;
+            }
         }
         const ref = this.channelAdapter.on(type, callback);
         const binding = {
@@ -64590,6 +64617,21 @@ class RealtimeChannel {
         const normalizedServer = serverValue !== null && serverValue !== void 0 ? serverValue : undefined;
         const normalizedClient = clientValue !== null && clientValue !== void 0 ? clientValue : undefined;
         return normalizedServer === normalizedClient;
+    }
+    /**
+     * Two `postgres_changes` filters are the same when the server would collapse them into a single
+     * subscription.
+     * @internal
+     */
+    static isSamePostgresFilter(a, b) {
+        var _a, _b, _c, _d;
+        const selectA = (_b = (_a = a === null || a === void 0 ? void 0 : a.select) === null || _a === void 0 ? void 0 : _a.join()) !== null && _b !== void 0 ? _b : undefined;
+        const selectB = (_d = (_c = b === null || b === void 0 ? void 0 : b.select) === null || _c === void 0 ? void 0 : _c.join()) !== null && _d !== void 0 ? _d : undefined;
+        return ((a === null || a === void 0 ? void 0 : a.event) === (b === null || b === void 0 ? void 0 : b.event) &&
+            RealtimeChannel.isFilterValueEqual(a === null || a === void 0 ? void 0 : a.schema, b === null || b === void 0 ? void 0 : b.schema) &&
+            RealtimeChannel.isFilterValueEqual(a === null || a === void 0 ? void 0 : a.table, b === null || b === void 0 ? void 0 : b.table) &&
+            RealtimeChannel.isFilterValueEqual(a === null || a === void 0 ? void 0 : a.filter, b === null || b === void 0 ? void 0 : b.filter) &&
+            selectA === selectB);
     }
     /** @internal */
     _getPayloadRecords(payload) {
@@ -64867,6 +64909,7 @@ class RealtimeClient {
         this.serializer = new Serializer();
         this._manuallySetToken = false;
         this._authPromise = null;
+        this._authGeneration = 0;
         this._workerHeartbeatTimer = undefined;
         this._pendingWorkerHeartbeatRef = null;
         this._pendingDisconnectTimer = null;
@@ -65062,14 +65105,18 @@ class RealtimeClient {
      *
      * On callback used, it will set the value of the token internal to the client.
      *
-     * When a token is explicitly provided, it will be preserved across channel operations
-     * (including removeChannel and resubscribe). The `accessToken` callback will not be
-     * invoked until `setAuth()` is called without arguments.
+     * When a token is explicitly provided AND no `accessToken` callback is configured,
+     * it will be preserved across channel operations (including removeChannel and
+     * resubscribe) and the client stays in manual-token mode.
+     *
+     * When an `accessToken` callback IS configured, the callback is the source of truth:
+     * the client remains in callback mode and continues to refresh from it on heartbeat,
+     * even after a bootstrap/override `setAuth(token)` call.
      *
      * @param token A JWT string to override the token set on the client.
      *
      * @example Setting the authorization header
-     * // Use a manual token (preserved across resubscribes, ignores accessToken callback)
+     * // Use a manual token (preserved across resubscribes when no accessToken callback is set)
      * client.realtime.setAuth('my-custom-jwt')
      *
      * // Switch back to using the accessToken callback
@@ -65078,12 +65125,18 @@ class RealtimeClient {
      * @category Realtime
      */
     async setAuth(token = null) {
-        this._authPromise = this._performAuth(token);
+        const authGeneration = ++this._authGeneration;
+        const authPromise = this._performAuth(token, authGeneration);
+        if (authGeneration === this._authGeneration) {
+            this._authPromise = authPromise;
+        }
         try {
-            await this._authPromise;
+            await authPromise;
         }
         finally {
-            this._authPromise = null;
+            if (this._authPromise === authPromise) {
+                this._authPromise = null;
+            }
         }
     }
     /**
@@ -65162,7 +65215,7 @@ class RealtimeClient {
      * Perform the actual auth operation
      * @internal
      */
-    async _performAuth(token = null) {
+    async _performAuth(token, authGeneration) {
         let tokenToSend;
         let isManualToken = false;
         if (token) {
@@ -65184,13 +65237,16 @@ class RealtimeClient {
         else {
             tokenToSend = this.accessTokenValue;
         }
-        // Track whether this token was manually set or fetched via callback
-        if (isManualToken) {
-            this._manuallySetToken = true;
+        if (authGeneration !== this._authGeneration) {
+            return;
         }
-        else if (this.accessToken) {
-            // If we used the callback, clear the manual flag
+        // Track whether this token was manually set or fetched via callback.
+        // The callback is the source of truth for token refresh
+        if (this.accessToken) {
             this._manuallySetToken = false;
+        }
+        else if (isManualToken) {
+            this._manuallySetToken = true;
         }
         if (this.accessTokenValue != tokenToSend) {
             this.accessTokenValue = tokenToSend;
@@ -65199,7 +65255,7 @@ class RealtimeClient {
                     access_token: tokenToSend,
                     version: DEFAULT_VERSION,
                 };
-                tokenToSend && channel.updateJoinPayload(payload);
+                channel.updateJoinPayload(payload);
                 if (channel.joinedOnce && channel.channelAdapter.isJoined()) {
                     channel.channelAdapter.push(CHANNEL_EVENTS$1.access_token, {
                         access_token: tokenToSend,
@@ -66033,14 +66089,15 @@ function isStorageError(error) {
 * Includes HTTP status code and service-specific error code
 */
 var StorageApiError = class extends StorageError {
-	constructor(message, status, statusCode, namespace = "storage") {
+	constructor(message, status, statusCode, namespace = "storage", code) {
 		super(message, namespace, status, statusCode);
 		this.name = namespace === "vectors" ? "StorageVectorsApiError" : "StorageApiError";
 		this.status = status;
 		this.statusCode = statusCode;
+		this.code = code;
 	}
 	toJSON() {
-		return _objectSpread2$1({}, super.toJSON());
+		return _objectSpread2$1(_objectSpread2$1({}, super.toJSON()), {}, { code: this.code });
 	}
 };
 /**
@@ -66200,7 +66257,7 @@ const handleError$1 = async (error, reject, options, namespace) => {
 		if (!Number.isFinite(status)) status = 500;
 		responseError.json().then((err) => {
 			const statusCode = (err === null || err === void 0 ? void 0 : err.statusCode) || (err === null || err === void 0 ? void 0 : err.code) || status + "";
-			reject(new StorageApiError(_getErrorMessage$1(err), status, statusCode, namespace));
+			reject(new StorageApiError(_getErrorMessage$1(err), status, statusCode, namespace, err === null || err === void 0 ? void 0 : err.code));
 		}).catch(() => {
 			const statusCode = status + "";
 			reject(new StorageApiError(responseError.statusText || `HTTP ${status} error`, status, statusCode, namespace));
@@ -67486,7 +67543,7 @@ var StorageFileApi = class extends BaseApiClient {
 
 //#endregion
 //#region src/lib/version.ts
-const version$3 = "2.111.0";
+const version$3 = "2.112.3";
 
 //#endregion
 //#region src/lib/constants.ts
@@ -68996,7 +69053,7 @@ var StorageClient = class extends StorageBucketApi {
 // - Debugging and support (identifying which version is running)
 // - Telemetry and logging (version reporting in errors/analytics)
 // - Ensuring build artifacts match the published package version
-const version$2 = '2.111.0';
+const version$2 = '2.112.3';
 
 /** Current session will be checked for refresh at this interval. */
 const AUTO_REFRESH_TICK_DURATION_MS = 30 * 1000;
@@ -70002,7 +70059,7 @@ function getAlgorithm(alg) {
             throw new Error('Invalid alg claim');
     }
 }
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function validateUUID(str) {
     if (!UUID_REGEX.test(str)) {
         throw new Error('@supabase/auth-js: Expected parameter to be UUID but is not');
@@ -70110,16 +70167,20 @@ async function handleError(error) {
     if (!looksLikeFetchResponse(error)) {
         throw new AuthRetryableFetchError(_getErrorMessage(error), 0);
     }
-    if (NETWORK_ERROR_CODES.includes(error.status)) {
-        // status in 500...599 range - server had an error, request might be retryed.
-        throw new AuthRetryableFetchError(_getErrorMessage(error), error.status);
-    }
     let data;
     try {
         data = await error.json();
     }
     catch (e) {
+        if (NETWORK_ERROR_CODES.includes(error.status)) {
+            // statusText can be empty — HTTP/2 has no reason phrase
+            throw new AuthRetryableFetchError(error.statusText || `HTTP ${error.status}`, error.status);
+        }
         throw new AuthUnknownError(_getErrorMessage(e), e);
+    }
+    if (NETWORK_ERROR_CODES.includes(error.status)) {
+        // status in 500...599 range - server had an error, request might be retryed.
+        throw new AuthRetryableFetchError(_getErrorMessage(data), error.status);
     }
     let errorCode = undefined;
     const responseAPIVersion = parseResponseAPIVersion(error);
@@ -78146,7 +78207,7 @@ GoTrueClient.nextInstanceID = {};
 const AuthClient = GoTrueClient;
 
 //#region src/lib/version.ts
-const version$1 = "2.111.0";
+const version$1 = "2.112.3";
 
 //#endregion
 //#region src/lib/constants.ts
@@ -78180,72 +78241,6 @@ const DEFAULT_TRACE_PROPAGATION_OPTIONS = {
 	enabled: false,
 	respectSamplingDecision: true
 };
-
-//#endregion
-//#region ../../../node_modules/.pnpm/tslib@2.8.1/node_modules/tslib/tslib.es6.mjs
-function __awaiter(thisArg, _arguments, P, generator) {
-	function adopt(value) {
-		return value instanceof P ? value : new P(function(resolve) {
-			resolve(value);
-		});
-	}
-	return new (P || (P = Promise))(function(resolve, reject) {
-		function fulfilled(value) {
-			try {
-				step(generator.next(value));
-			} catch (e) {
-				reject(e);
-			}
-		}
-		function rejected(value) {
-			try {
-				step(generator["throw"](value));
-			} catch (e) {
-				reject(e);
-			}
-		}
-		function step(result) {
-			result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-		}
-		step((generator = generator.apply(thisArg, [])).next());
-	});
-}
-
-//#endregion
-//#region ../../shared/tracing/dist/module/extract.js
-let otelModulePromise = null;
-const OTEL_PKG = "@opentelemetry/api";
-function loadOtel() {
-	if (otelModulePromise === null) otelModulePromise = import(/* webpackIgnore: true */ /* turbopackIgnore: true */ /* @vite-ignore */ OTEL_PKG).catch(() => null);
-	return otelModulePromise;
-}
-/**
-* Extract trace context from the OpenTelemetry API.
-*
-* Returns null if `@opentelemetry/api` is not installed or there is no active
-* trace context. The dynamic import is cached after the first call.
-*
-* @returns Trace context with traceparent, tracestate, and baggage headers, or null if unavailable
-*/
-function extractTraceContext() {
-	return __awaiter(this, void 0, void 0, function* () {
-		try {
-			const otel = yield loadOtel();
-			if (!otel || !otel.propagation || !otel.context) return null;
-			const carrier = {};
-			otel.propagation.inject(otel.context.active(), carrier);
-			const traceparent = carrier["traceparent"];
-			if (!traceparent) return null;
-			return {
-				traceparent,
-				tracestate: carrier["tracestate"],
-				baggage: carrier["baggage"]
-			};
-		} catch (_a) {
-			return null;
-		}
-	});
-}
 
 //#endregion
 //#region ../../shared/tracing/dist/module/parse.js
@@ -78505,7 +78500,7 @@ const fetchWithAuth = (supabaseKey, supabaseUrl, getAccessToken, customFetch, tr
 			if (bearer) headers.set("Authorization", `Bearer ${bearer}`);
 		}
 		if (traceTargets) {
-			const traceHeaders = await getTraceHeaders(input, traceTargets, respectSampling);
+			const traceHeaders = getTraceHeaders(input, traceTargets, respectSampling);
 			if (traceHeaders) {
 				if (traceHeaders.traceparent && !headers.has("traceparent")) headers.set("traceparent", traceHeaders.traceparent);
 				if (traceHeaders.tracestate && !headers.has("tracestate")) headers.set("tracestate", traceHeaders.tracestate);
@@ -78515,13 +78510,31 @@ const fetchWithAuth = (supabaseKey, supabaseUrl, getAccessToken, customFetch, tr
 		return fetch$1(input, _objectSpread2(_objectSpread2({}, init), {}, { headers }));
 	};
 };
-async function getTraceHeaders(input, targets, respectSampling) {
+let warnedMissingTracingRuntime = false;
+let warnedNonW3CPropagator = false;
+function getTraceHeaders(input, targets, respectSampling) {
+	const extractTraceContext = getTraceContextExtractor();
+	if (!extractTraceContext) {
+		if (!warnedMissingTracingRuntime) {
+			warnedMissingTracingRuntime = true;
+			console.warn("@supabase/supabase-js: tracePropagation is enabled but the tracing runtime is not loaded, so trace headers will not be attached. Add `import '@supabase/supabase-js/tracing'` at your application entry point (requires the OpenTelemetry API package to be installed). The CDN/UMD build does not support trace propagation.");
+		}
+		return null;
+	}
 	if (!shouldPropagateToTarget(typeof input === "string" ? input : input instanceof URL ? input : input.url, targets)) return null;
-	const traceContext = await extractTraceContext();
-	if (!traceContext || !traceContext.traceparent) return null;
+	const traceContext = extractTraceContext();
+	if (!traceContext || !traceContext.traceparent) {
+		var _traceContext$carrier;
+		if ((traceContext === null || traceContext === void 0 || (_traceContext$carrier = traceContext.carrierKeys) === null || _traceContext$carrier === void 0 ? void 0 : _traceContext$carrier.length) && !warnedNonW3CPropagator) {
+			warnedNonW3CPropagator = true;
+			const sentryHint = traceContext.carrierKeys.includes("sentry-trace") ? " Sentry detected: set `propagateTraceparent: true` in Sentry.init() to emit it." : " Configure your tracing SDK to emit W3C trace context on outgoing requests.";
+			console.warn(`@supabase/supabase-js: tracePropagation is enabled and a tracing SDK is active, but its propagator wrote [${traceContext.carrierKeys.join(", ")}] and no W3C traceparent header, so trace headers will not be attached.` + sentryHint);
+		}
+		return null;
+	}
 	if (respectSampling) {
 		const parsed = parseTraceParent(traceContext.traceparent);
-		if (parsed && !parsed.isSampled) return null;
+		if (parsed && !parsed.isSampled) return { traceparent: traceContext.traceparent };
 	}
 	return traceContext;
 }
@@ -78782,10 +78795,12 @@ var SupabaseClient = class {
 	* Opt in to W3C trace context propagation so the `trace_id` from your
 	* client-side spans is attached to Supabase requests and appears in API
 	* Gateway and Edge Function logs. Requires `@opentelemetry/api` to be
-	* installed in your application. See [Tracing with the JS SDK](https://supabase.com/docs/guides/telemetry/client-side-tracing).
+	* installed in your application and the tracing runtime to be loaded via
+	* `import '@supabase/supabase-js/tracing'`. See [Tracing with the JS SDK](https://supabase.com/docs/guides/telemetry/client-side-tracing).
 	*
 	* @example With OpenTelemetry tracing
 	* ```ts
+	* import '@supabase/supabase-js/tracing'
 	* import { createClient } from '@supabase/supabase-js'
 	* import { trace } from '@opentelemetry/api'
 	*
@@ -78848,7 +78863,8 @@ var SupabaseClient = class {
 			schema: settings.db.schema,
 			fetch: this.fetch,
 			timeout: settings.db.timeout,
-			urlLengthLimit: settings.db.urlLengthLimit
+			urlLengthLimit: settings.db.urlLengthLimit,
+			retry: settings.db.retry
 		});
 		this.storage = new StorageClient(this.storageUrl.href, this.headers, this.fetch, options === null || options === void 0 ? void 0 : options.storage);
 		if (!settings.accessToken) this._listenForAuthEvents();
