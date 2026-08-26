@@ -34,7 +34,7 @@
 		"husky": "9.1.7",
 		"rollup": "4.62.4",
 		"typescript": "7.0.2",
-		"vitest": "4.1.10"
+		"vitest": "4.1.11"
 	},
 	"dependencies": {
 		"@actions/core": "3.0.1",
