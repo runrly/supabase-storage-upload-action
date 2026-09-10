@@ -1,5 +1,11 @@
 # supabase-storage-upload-action
 
+## 1.0.5
+
+### Patch Changes
+
+- 3fd5930: Update the bundled Supabase client to 2.112.3.
+
 ## 1.0.4
 
 ### Patch Changes
