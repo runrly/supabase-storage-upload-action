@@ -42,11 +42,9 @@ jobs:
       - name: Create or update Release PR
         uses: changesets/action@v2
         with:
-          version: pnpm changeset version
-          commit: "release: version packages"
-          title: "release: version packages"
-          setupGitUser: false
-          commitMode: github-api
-          createGithubReleases: false
-        env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          github-token: ${{ steps.app-token.outputs.token }}
+          version-script: pnpm changeset version
+          commit-message: "release: version packages"
+          pr-title: "release: version packages"
+          create-github-releases: false
+          push-git-tags: false
