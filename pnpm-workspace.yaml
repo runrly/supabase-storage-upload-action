@@ -1,3 +1,7 @@
+# Keep a single-document lockfile until GitHub supports pnpm's environment document.
+# Tracking: https://github.com/dependabot/dependabot-core/issues/15904
+pmOnFail: ignore
+
 overrides:
   "@actions/glob>minimatch": 11.0.1
   "@changesets/parse>js-yaml": 4.3.2

@@ -15,6 +15,8 @@ Devbox currently pins Node.js 24.21.0, the latest Node.js 24 version available i
 
 Devbox, `package.json`, and CI pin pnpm 12.9.0, the latest version available in the Devbox catalog. Keep these pins synchronized when updating the package manager.
 
+`pmOnFail: ignore` temporarily keeps the pnpm lockfile in a single-document format that GitHub's dependency graph can read. This disables pnpm's automatic package-manager version handling, so use the pinned Devbox or CI toolchain. Remove the workaround once [Dependabot issue #15904](https://github.com/dependabot/dependabot-core/issues/15904) is resolved.
+
 The published Action uses the runner's bundled `node24` runtime, independently of `actions/setup-node`. Runners must provide Node.js 24.22.1 or later for the [October 2026 security fixes](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases).
 
 Commits must follow Conventional Commits. The tracked Husky hooks run the complete verification suite and validate commit messages locally; pull requests run the same verification, Conventional Commit validation, and GitHub Dependency Review.
