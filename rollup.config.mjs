@@ -8,6 +8,14 @@ export default {
 		file: "dist/index.js",
 		format: "es",
 		sourcemap: true,
+		// pnpm shortens store directories differently on Windows.
+		sourcemapPathTransform: (sourcePath) =>
+			sourcePath
+				.replaceAll("\\", "/")
+				.replace(
+					/node_modules\/\.pnpm\/[^/]+\/node_modules\//,
+					"node_modules/",
+				),
 	},
 	plugins: [nodeResolve({ preferBuiltins: true }), json(), commonjs()],
 };
