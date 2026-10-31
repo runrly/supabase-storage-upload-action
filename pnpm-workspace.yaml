@@ -1,7 +1,12 @@
 overrides:
-  "@changesets/parse>js-yaml": 4.3.1
-  brace-expansion: 5.0.9
-  "cosmiconfig>js-yaml": 4.3.1
-  fast-uri: 3.1.5
+  "@actions/glob>minimatch": 11.0.1
+  "@changesets/parse>js-yaml": 4.3.2
+  brace-expansion: 5.0.12
+  "cosmiconfig>js-yaml": 4.3.2
+  fast-uri: 3.1.9
   "read-yaml-file>js-yaml": 3.15.1
-  undici: 6.28.0
+  undici: 6.29.1
+  vite: 8.1.6
+patchedDependencies:
+  # Keep partial matching compatible with minimatch 11 until @actions/glob supports it.
+  "@actions/glob@0.7.0": patches/@actions__glob@0.7.0.patch

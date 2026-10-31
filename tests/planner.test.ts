@@ -79,6 +79,35 @@ describe("createUploadPlan", () => {
 		]);
 	});
 
+	it.each([
+		["./assets/**/app?.[jt]s", ["app2.ts", "nested/app1.js"]],
+		["./assets/**/*.js", ["nested/.hidden.js", "nested/app1.js"]],
+		["./assets/*/*.js", ["nested/.hidden.js", "nested/app1.js"]],
+		["./assets/**/.hidden.js", ["nested/.hidden.js"]],
+	])(
+		"selects files matching %s across nested folders",
+		async (from, expected) => {
+			const root = await workspace();
+			await fs.mkdir(path.join(root, "assets", "nested"), { recursive: true });
+			for (const file of [
+				"app2.ts",
+				"ignored.css",
+				"nested/app1.js",
+				"nested/.hidden.js",
+			]) {
+				await fs.writeFile(path.join(root, "assets", file), "fixture");
+			}
+
+			const plan = await createUploadPlan(config([{ from }]), {
+				workspace: root,
+			});
+
+			expect(plan.entries.map((entry) => entry.objectKey).sort()).toEqual(
+				expected,
+			);
+		},
+	);
+
 	it("infers MIME types from globbed filenames", async () => {
 		const root = await workspace();
 		await fs.mkdir(path.join(root, "assets"), { recursive: true });
