@@ -1,5 +1,13 @@
 # supabase-storage-upload-action
 
+## 1.0.5
+
+### Patch Changes
+
+- c85b0aa: Update bundled HTTP and glob-matching dependencies to fix denial-of-service and TLS certificate validation vulnerabilities.
+- 698daea: Update the bundled Zod configuration validator to 4.6.7, including the fix for excessive memory use when validating oversized constrained collections.
+- 3fd5930: Update the bundled Supabase client to 2.116.0.
+
 ## 1.0.4
 
 ### Patch Changes
